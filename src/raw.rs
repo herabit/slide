@@ -407,6 +407,89 @@ impl<T> RawSlide<T> {
     }
 }
 
+// NOTE: It doesn't make a whole lot of sense to take from the consumed buffer,
+//       as it being consumed implies it was already taken.
+//
+//       We're unsure of whether implementing these methods in a direction agnostic
+//       manner makes all that much sense with that taken into consideration.
+// impl<T> RawSlide<T> {
+//     #[inline]
+//     #[must_use]
+//     #[track_caller]
+//     pub const unsafe fn take_slice_unchecked(&mut self, n: usize) -> NonNull<[T]> {
+//         let slice = unsafe { self.peek_slice_unchecked(RIGHT, n) };
+//         unsafe { self.slide_unchecked(RIGHT, n) };
+
+//         slice
+//     }
+
+//     #[inline]
+//     #[must_use]
+//     #[track_caller]
+//     pub const unsafe fn take_array_unchecked<const N: usize>(&mut self) -> NonNull<[T; N]> {
+//         unsafe { self.take_slice_unchecked(N) }.cast()
+//     }
+
+//     #[inline]
+//     #[must_use]
+//     #[track_caller]
+//     pub const unsafe fn take_unchecked(&mut self) -> NonNull<T> {
+//         unsafe { self.take_slice_unchecked(1) }.cast()
+//     }
+
+//     #[inline]
+//     #[must_use]
+//     #[track_caller]
+//     pub const fn take_slice_checked(&mut self, n: usize) -> Option<NonNull<[T]>> {
+//         if n <= self.remaining().len() {
+//             Some(unsafe { self.take_slice_unchecked(n) })
+//         } else {
+//             None
+//         }
+//     }
+
+//     #[inline]
+//     #[must_use]
+//     #[track_caller]
+//     pub const fn take_array_checked<const N: usize>(&mut self) -> Option<NonNull<[T; N]>> {
+//         match self.take_slice_checked(N) {
+//             Some(ptr) => Some(ptr.cast()),
+//             None => None,
+//         }
+//     }
+
+//     #[inline]
+//     #[must_use]
+//     #[track_caller]
+//     pub const fn take_checked(&mut self) -> Option<NonNull<T>> {
+//         match self.take_slice_checked(1) {
+//             Some(ptr) => Some(ptr.cast()),
+//             None => None,
+//         }
+//     }
+
+//     #[inline]
+//     #[must_use]
+//     #[track_caller]
+//     pub const fn take_slice(&mut self, n: usize) -> NonNull<[T]> {
+//         self.take_slice_checked(n).expect("out of bounds")
+//     }
+
+//     #[inline]
+//     #[must_use]
+//     #[track_caller]
+//     pub const fn take_array<const N: usize>(&mut self) -> NonNull<[T; N]> {
+//         self.take_slice(N).cast()
+//     }
+
+//     #[inline]
+//     #[must_use]
+//     #[track_caller]
+//     pub const fn take(&mut self) -> NonNull<T> {
+//         self.take_slice(1).cast()
+//     }
+// }
+
 impl<T> Clone for RawSlide<T> {
     #[inline]
     fn clone(&self) -> Self {
