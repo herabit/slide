@@ -6,7 +6,9 @@ use super::{non_zst::NonZst, zst::Zst};
 /// `T` is a ZST.
 #[repr(C)]
 pub(super) union Data<T> {
+    /// Additional data needed for ZST slides.
     pub(super) zst: Zst<T>,
+    /// Additional data neeeded for non-ZST slides.
     pub(super) non_zst: NonZst<T>,
 }
 

@@ -15,6 +15,7 @@ mod zst;
 /// A struct used for implementing slides.
 #[repr(C)]
 pub(crate) struct RawSlide<T> {
+    /// The start of the slide's buffer.
     start: NonNull<T>,
     data: Data<T>,
 }
