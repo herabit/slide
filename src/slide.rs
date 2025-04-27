@@ -1,11 +1,6 @@
-use core::{
-    fmt, hash,
-    marker::PhantomData,
-    ops::{Index, IndexMut},
-    slice::SliceIndex,
-};
+use core::{fmt, hash, marker::PhantomData, ops::Index, slice::SliceIndex};
 
-use crate::{Direction, raw::RawSlide};
+use crate::{Direction, SlideMut, raw::RawSlide};
 
 /// A slide over an immutable buffer.
 #[repr(transparent)]
@@ -54,28 +49,28 @@ impl<'a, T> Slide<'a, T> {
         offset
     }
 
-    /// This creates a new slide with a smaller lifetime.
-    #[inline]
-    #[must_use]
-    pub const fn as_slide(&self) -> Slide<'_, T> {
-        *self
-    }
+    // /// This creates a new slide with a smaller lifetime.
+    // #[inline]
+    // #[must_use]
+    // pub const fn as_slide(&self) -> Slide<'_, T> {
+    //     *self
+    // }
 
-    /// Returns the whole source slice.
+    /// Returns a reference to the source slice.
     #[inline]
     #[must_use]
     pub const fn source(&self) -> &'a [T] {
         unsafe { self.raw.source().as_ref() }
     }
 
-    /// Returns the consumed slice.
+    /// Returns a reference to the consumed slice.
     #[inline]
     #[must_use]
     pub const fn consumed(&self) -> &'a [T] {
         unsafe { self.raw.consumed().as_ref() }
     }
 
-    /// Returns the remaining slice.
+    /// Returns a reference to the remaining slice.
     #[inline]
     #[must_use]
     pub const fn remaining(&self) -> &'a [T] {
@@ -326,14 +321,37 @@ where
     }
 }
 
+impl<'a, 'b, T, U> PartialEq<SlideMut<'b, U>> for Slide<'a, T>
+where
+    T: PartialEq<U>,
+{
+    #[inline]
+    fn eq(&self, other: &SlideMut<'b, U>) -> bool {
+        self.consumed() == other.consumed() && self.remaining() == other.remaining()
+    }
+}
+
 impl<'a, T> Eq for Slide<'a, T> where T: Eq {}
 
-impl<'a, T> PartialOrd for Slide<'a, T>
+impl<'a, 'b, T> PartialOrd<Slide<'b, T>> for Slide<'a, T>
 where
     T: PartialOrd,
 {
     #[inline]
-    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+    fn partial_cmp(&self, other: &Slide<'b, T>) -> Option<core::cmp::Ordering> {
+        let consumed = self.consumed().partial_cmp(other.consumed())?;
+        let remaining = self.remaining().partial_cmp(other.remaining())?;
+
+        Some(consumed.then(remaining))
+    }
+}
+
+impl<'a, 'b, T> PartialOrd<SlideMut<'b, T>> for Slide<'a, T>
+where
+    T: PartialOrd,
+{
+    #[inline]
+    fn partial_cmp(&self, other: &SlideMut<'b, T>) -> Option<core::cmp::Ordering> {
         let consumed = self.consumed().partial_cmp(other.consumed())?;
         let remaining = self.remaining().partial_cmp(other.remaining())?;
 
@@ -347,10 +365,9 @@ where
 {
     #[inline]
     fn cmp(&self, other: &Self) -> core::cmp::Ordering {
-        let consumed = self.consumed().cmp(other.consumed());
-        let remaining = self.remaining().cmp(other.remaining());
-
-        consumed.then(remaining)
+        self.consumed()
+            .cmp(other.consumed())
+            .then_with(|| self.remaining().cmp(other.remaining()))
     }
 }
 
@@ -392,7 +409,8 @@ where
 {
     type Output = <I as SliceIndex<[T]>>::Output;
 
-    #[inline(always)]
+    #[inline]
+    #[track_caller]
     fn index(&self, index: I) -> &Self::Output {
         self.remaining().index(index)
     }
