@@ -277,6 +277,22 @@ impl<T> RawSlide<T> {
             Direction::Left => {
                 unsafe { hint::assert_unchecked(n <= self.consumed().len()) };
 
+                // NOTE: The start of `self.remaining()` is equivalent to
+                //       the cursor pointer for non-ZSTs.
+                //
+                //       LLVM is able to optimize
+                //       the pointer math to calculate the pointer into
+                //       a no-op read of the cursor pointer.
+                //
+                //       So rather than calculating the new pointer in terms of `consumed`,
+                //       which starts at the `start` pointer, we utilize `remaining` instead
+                //       to open more opportunities for further optimization.
+                //
+                //       I hope this makes sense.
+                //
+                //       Hopefully.
+                //
+                //       It's kinda hard to explain :/
                 nonnull_slice(unsafe { self.remaining().cast().sub(n) }, n)
             }
         }
