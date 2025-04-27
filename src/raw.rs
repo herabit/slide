@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use core::{hint, mem::MaybeUninit, ptr::NonNull};
+use core::{hint, ptr::NonNull};
 
 use data::{Data, DataMut, DataRef};
 use non_zst::NonZst;
@@ -127,28 +127,28 @@ impl<T> RawSlide<T> {
     }
 }
 
-impl<T> RawSlide<MaybeUninit<T>> {
-    /// Assume that the slide is initialized.
-    #[inline]
-    #[must_use]
-    pub const unsafe fn assume_init(self) -> RawSlide<T> {
-        unsafe { core::mem::transmute(self) }
-    }
+// impl<T> RawSlide<MaybeUninit<T>> {
+//     /// Assume that the slide is initialized.
+//     #[inline]
+//     #[must_use]
+//     pub const unsafe fn assume_init(self) -> RawSlide<T> {
+//         unsafe { core::mem::transmute(self) }
+//     }
 
-    /// Assume that this slide is initialized.
-    #[inline]
-    #[must_use]
-    pub const unsafe fn assume_init_ref(&self) -> &RawSlide<T> {
-        unsafe { &*(&raw const *self).cast() }
-    }
+//     /// Assume that this slide is initialized.
+//     #[inline]
+//     #[must_use]
+//     pub const unsafe fn assume_init_ref(&self) -> &RawSlide<T> {
+//         unsafe { &*(&raw const *self).cast() }
+//     }
 
-    /// Assume that this slide is initialized mutably.
-    #[inline]
-    #[must_use]
-    pub const unsafe fn assume_init_mut(&mut self) -> &mut RawSlide<T> {
-        unsafe { &mut *(&raw mut *self).cast() }
-    }
-}
+//     /// Assume that this slide is initialized mutably.
+//     #[inline]
+//     #[must_use]
+//     pub const unsafe fn assume_init_mut(&mut self) -> &mut RawSlide<T> {
+//         unsafe { &mut *(&raw mut *self).cast() }
+//     }
+// }
 
 impl<T> RawSlide<T> {
     /// Set the offset for the cursor without any checks.
@@ -234,20 +234,13 @@ impl<T> RawSlide<T> {
     #[track_caller]
     pub const fn slide_checked(&mut self, dir: Direction, n: usize) -> Option<()> {
         match dir {
-            Direction::Right => {
-                if n <= self.remaining().len() {
-                    Some(unsafe { self.slide_unchecked(RIGHT, n) })
-                } else {
-                    None
-                }
+            Direction::Right if n <= self.remaining().len() => {
+                Some(unsafe { self.slide_unchecked(RIGHT, n) })
             }
-            Direction::Left => {
-                if n <= self.consumed().len() {
-                    Some(unsafe { self.slide_unchecked(LEFT, n) })
-                } else {
-                    None
-                }
+            Direction::Left if n <= self.consumed().len() => {
+                Some(unsafe { self.slide_unchecked(LEFT, n) })
             }
+            _ => None,
         }
     }
 
@@ -329,25 +322,18 @@ impl<T> RawSlide<T> {
     #[track_caller]
     pub const fn peek_slice_checked(&self, dir: Direction, n: usize) -> Option<NonNull<[T]>> {
         match dir {
-            Direction::Right => {
-                if n <= self.remaining().len() {
-                    Some(unsafe { self.peek_slice_unchecked(RIGHT, n) })
-                } else {
-                    None
-                }
+            Direction::Right if n <= self.remaining().len() => {
+                Some(unsafe { self.peek_slice_unchecked(RIGHT, n) })
             }
-            Direction::Left => {
-                if n <= self.remaining().len() {
-                    Some(unsafe { self.peek_slice_unchecked(LEFT, n) })
-                } else {
-                    None
-                }
+            Direction::Left if n <= self.consumed().len() => {
+                Some(unsafe { self.peek_slice_unchecked(LEFT, n) })
             }
+            _ => None,
         }
     }
 
     /// Peek `N` elements as an array in a given direction.
-    ///    
+    ///
     /// # Returns
     ///
     /// - [`Direction::Right`]: Returns `None` if `N > self.remaining().len()`.

@@ -7,6 +7,10 @@ pub(crate) mod slide;
 #[doc(inline)]
 pub use slide::*;
 
+pub(crate) mod slide_mut;
+#[doc(inline)]
+pub use slide_mut::*;
+
 pub const LEFT: Direction = Direction::Left;
 pub const RIGHT: Direction = Direction::Right;
 

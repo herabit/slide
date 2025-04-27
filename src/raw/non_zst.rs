@@ -6,6 +6,7 @@ use crate::util;
 /// zero sized.
 #[repr(C)]
 pub(super) struct NonZst<T> {
+    // start <= cursor <= end
     pub(super) end: NonNull<T>,
     pub(super) cursor: NonNull<T>,
 }
