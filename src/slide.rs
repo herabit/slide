@@ -1,4 +1,9 @@
-use core::{fmt, hash, marker::PhantomData};
+use core::{
+    fmt, hash,
+    marker::PhantomData,
+    ops::{Index, IndexMut},
+    slice::SliceIndex,
+};
 
 use crate::{Direction, raw::RawSlide};
 
@@ -364,5 +369,31 @@ impl<'a, T> Default for Slide<'a, T> {
     #[inline]
     fn default() -> Self {
         Slide::new(Default::default())
+    }
+}
+
+impl<'a, T> From<&'a [T]> for Slide<'a, T> {
+    #[inline]
+    fn from(value: &'a [T]) -> Self {
+        Slide::new(value)
+    }
+}
+
+impl<'a, T> From<&'a mut [T]> for Slide<'a, T> {
+    #[inline]
+    fn from(value: &'a mut [T]) -> Self {
+        Slide::new(value)
+    }
+}
+
+impl<'a, T, I> Index<I> for Slide<'a, T>
+where
+    I: SliceIndex<[T]>,
+{
+    type Output = <I as SliceIndex<[T]>>::Output;
+
+    #[inline(always)]
+    fn index(&self, index: I) -> &Self::Output {
+        self.remaining().index(index)
     }
 }
