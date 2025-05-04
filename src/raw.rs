@@ -1,181 +1,215 @@
 #![allow(dead_code)]
 
-use core::{hint, ptr::NonNull};
+use core::ptr::NonNull;
 
-use data::{Data, DataMut, DataRef};
-use non_zst::NonZst;
-use zst::Zst;
+use crate::util::{self, assert_unchecked};
 
-use crate::{Direction, LEFT, RIGHT, util::nonnull_slice};
-
-mod data;
 mod non_zst;
 mod zst;
 
-/// A struct used for implementing slides.
+/// A raw slide over a buffer.
+///
+/// # Safety
+///
+/// Its bits must be a valid [`zst::Slide`] if `T` is zero sized,
+/// or a valid [`non_zst::Slide`] if `T` is not zero sized.
 #[repr(C)]
 pub(crate) struct RawSlide<T> {
-    /// The start of the slide's buffer.
-    start: NonNull<T>,
-    data: Data<T>,
+    _start: NonNull<T>,
+    _data: [*const T; 2],
 }
 
 impl<T> RawSlide<T> {
-    #[inline]
+    #[inline(always)]
+    #[must_use]
+    const unsafe fn new(slice: NonNull<[T]>, offset: usize) -> Option<Self> {
+        if offset <= slice.len() {
+            Some(match size_of::<T>() {
+                0 => unsafe { zst::Slide::new(slice, offset) }.into_raw(),
+                1.. => unsafe { non_zst::Slide::new(slice, offset) }.into_raw(),
+            })
+        } else {
+            None
+        }
+    }
+
+    #[inline(always)]
+    #[must_use]
+    pub(crate) const fn from_slice_offset(slice: &[T], offset: usize) -> Option<Self> {
+        unsafe { Self::new(util::nonnull_from_ref(slice), offset) }
+    }
+
+    #[inline(always)]
+    #[must_use]
+    pub(crate) const fn from_slice_mut_offset(slice: &mut [T], offset: usize) -> Option<Self> {
+        unsafe { Self::new(util::nonnull_from_mut(slice), offset) }
+    }
+
+    #[inline(always)]
+    #[must_use]
+    pub(crate) const fn from_slice(slice: &[T]) -> Self {
+        Self::from_slice_offset(slice, 0).unwrap()
+    }
+
+    #[inline(always)]
+    #[must_use]
+    pub(crate) const fn from_slice_mut(slice: &mut [T]) -> Self {
+        Self::from_slice_mut_offset(slice, 0).unwrap()
+    }
+}
+
+impl<T> RawSlide<T> {
+    #[inline(always)]
     #[must_use]
     #[track_caller]
-    const unsafe fn new_unchecked(slice: NonNull<[T]>, offset: usize) -> RawSlide<T> {
-        debug_assert!(offset <= slice.len(), "undefined behavior: out of bounds");
+    const fn as_zst(&self) -> &zst::Slide<T> {
+        let x = zst::Slide::from_raw_ref(self);
+        x.compiler_hints();
+        x
+    }
 
-        RawSlide {
-            start: slice.cast(),
-            data: match size_of::<T>() {
-                0 => Data {
-                    zst: unsafe { Zst::new_unchecked(slice, offset) },
-                },
-                1.. => Data {
-                    non_zst: unsafe { NonZst::new_unchecked(slice, offset) },
-                },
-            },
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    const fn as_non_zst(&self) -> &non_zst::Slide<T> {
+        let x = non_zst::Slide::from_raw_ref(self);
+        x.compiler_hints();
+        x
+    }
+
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    const fn as_zst_mut(&mut self) -> &mut zst::Slide<T> {
+        let x = zst::Slide::from_raw_mut(self);
+        x.compiler_hints();
+        x
+    }
+
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    const fn as_non_zst_mut(&mut self) -> &mut non_zst::Slide<T> {
+        let x = non_zst::Slide::from_raw_mut(self);
+        x.compiler_hints();
+        x
+    }
+
+    #[inline(always)]
+    #[must_use]
+    const fn borrow(&self) -> SlideRef<'_, T> {
+        match size_of::<T>() {
+            0 => SlideRef::Zst(self.as_zst()),
+            1.. => SlideRef::NonZst(self.as_non_zst()),
         }
     }
 
-    #[inline]
+    #[inline(always)]
     #[must_use]
-    pub const fn from_slice_offset(slice: &[T], offset: usize) -> Option<RawSlide<T>> {
-        if offset <= slice.len() {
-            let slice = NonNull::new(slice as *const [T] as *mut [T]).unwrap();
-
-            Some(unsafe { RawSlide::new_unchecked(slice, offset) })
-        } else {
-            None
+    const fn borrow_mut(&mut self) -> SlideMut<'_, T> {
+        match size_of::<T>() {
+            0 => SlideMut::Zst(self.as_zst_mut()),
+            1.. => SlideMut::NonZst(self.as_non_zst_mut()),
         }
-    }
-
-    #[inline]
-    #[must_use]
-    pub const fn from_slice(slice: &[T]) -> RawSlide<T> {
-        RawSlide::from_slice_offset(slice, 0).unwrap()
-    }
-
-    #[inline]
-    #[must_use]
-    pub const fn from_slice_mut_offset(slice: &mut [T], offset: usize) -> Option<RawSlide<T>> {
-        if offset <= slice.len() {
-            let slice = NonNull::new(slice as *mut [T]).unwrap();
-
-            Some(unsafe { RawSlide::new_unchecked(slice, offset) })
-        } else {
-            None
-        }
-    }
-
-    #[inline]
-    #[must_use]
-    pub const fn from_slice_mut(slice: &mut [T]) -> RawSlide<T> {
-        RawSlide::from_slice_mut_offset(slice, 0).unwrap()
-    }
-
-    /// Determines the offset of the cursor, and the ***total length*** of the
-    /// slide.
-    #[inline]
-    #[must_use]
-    pub const fn offset_len(&self) -> (usize, usize) {
-        let (offset, len) = match self.data.borrow() {
-            DataRef::Zst(data) => unsafe { data.offset_len(self.start) },
-            DataRef::NonZst(data) => unsafe { data.offset_len(self.start) },
-        };
-
-        unsafe { hint::assert_unchecked(offset <= len) };
-
-        (offset, len)
-    }
-
-    /// Assists the compiler.
-    #[inline]
-    pub const fn compiler_hints(&self) {
-        let _ = self.offset_len();
-    }
-
-    /// Get a pointer to the source data.
-    #[inline]
-    #[must_use]
-    pub const fn source(&self) -> NonNull<[T]> {
-        let (_, len) = self.offset_len();
-
-        nonnull_slice(self.start, len)
-    }
-
-    /// Get a pointer to the consumed data.
-    #[inline]
-    #[must_use]
-    pub const fn consumed(&self) -> NonNull<[T]> {
-        let (len, _) = self.offset_len();
-
-        nonnull_slice(self.start, len)
-    }
-
-    /// Get a pointer to the remaining data.
-    #[inline]
-    #[must_use]
-    pub const fn remaining(&self) -> NonNull<[T]> {
-        let (offset, len) = self.offset_len();
-
-        nonnull_slice(
-            unsafe { self.start.add(offset) },
-            len.checked_sub(offset).unwrap(),
-        )
     }
 }
 
-// impl<T> RawSlide<MaybeUninit<T>> {
-//     /// Assume that the slide is initialized.
-//     #[inline]
-//     #[must_use]
-//     pub const unsafe fn assume_init(self) -> RawSlide<T> {
-//         unsafe { core::mem::transmute(self) }
-//     }
+impl<T> RawSlide<T> {
+    /// Provide hints to the compiler.
+    #[inline(always)]
+    #[track_caller]
+    pub(crate) const fn compiler_hints(&self) {
+        match self.borrow() {
+            SlideRef::Zst(slide) => slide.compiler_hints(),
+            SlideRef::NonZst(slide) => slide.compiler_hints(),
+        }
+    }
 
-//     /// Assume that this slide is initialized.
-//     #[inline]
-//     #[must_use]
-//     pub const unsafe fn assume_init_ref(&self) -> &RawSlide<T> {
-//         unsafe { &*(&raw const *self).cast() }
-//     }
+    /// Return the entire source buffer.
+    #[inline(always)]
+    #[track_caller]
+    #[must_use]
+    pub(crate) const fn source(&self) -> NonNull<[T]> {
+        match self.borrow() {
+            SlideRef::Zst(slide) => slide.source(),
+            SlideRef::NonZst(slide) => slide.source(),
+        }
+    }
 
-//     /// Assume that this slide is initialized mutably.
-//     #[inline]
-//     #[must_use]
-//     pub const unsafe fn assume_init_mut(&mut self) -> &mut RawSlide<T> {
-//         unsafe { &mut *(&raw mut *self).cast() }
-//     }
-// }
+    /// Return the consumed buffer.
+    #[inline(always)]
+    #[track_caller]
+    #[must_use]
+    pub(crate) const fn consumed(&self) -> NonNull<[T]> {
+        match self.borrow() {
+            SlideRef::Zst(slide) => slide.consumed(),
+            SlideRef::NonZst(slide) => slide.consumed(),
+        }
+    }
+
+    /// Return the remaining buffer.
+    #[inline(always)]
+    #[track_caller]
+    #[must_use]
+    pub(crate) const fn remaining(&self) -> NonNull<[T]> {
+        match self.borrow() {
+            SlideRef::Zst(slide) => slide.remaining(),
+            SlideRef::NonZst(slide) => slide.remaining(),
+        }
+    }
+
+    /// Return whether the slide is done.
+    #[inline(always)]
+    #[track_caller]
+    #[must_use]
+    pub(crate) const fn is_done(&self) -> bool {
+        self.remaining().len() == 0
+    }
+}
 
 impl<T> RawSlide<T> {
-    /// Set the offset for the cursor without any checks.
+    /// Return the current offset in the slide.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub(crate) const fn offset(&self) -> usize {
+        match self.borrow() {
+            SlideRef::Zst(slide) => slide.offset(),
+            SlideRef::NonZst(slide) => slide.offset(),
+        }
+    }
+
+    /// Set the current offset in the slide without any checks.
     ///
     /// # Safety
     ///
-    /// The caller must ensure that `offset <= self.source().len()`.
-    #[inline]
+    /// The caller must ensure `offset <= self.source().len()`.
+    #[inline(always)]
     #[track_caller]
-    pub const unsafe fn set_offset_unchecked(&mut self, offset: usize) {
-        unsafe { hint::assert_unchecked(offset <= self.source().len()) };
+    pub(crate) const unsafe fn set_offset_unchecked(&mut self, offset: usize) {
+        unsafe {
+            assert_unchecked!(
+                offset <= self.source().len(),
+                "undefined behavior: `offset > self.source().len()`"
+            )
+        };
 
-        match self.data.borrow_mut() {
-            DataMut::Zst(data) => data.offset = offset,
-            DataMut::NonZst(data) => data.cursor = unsafe { self.start.add(offset) },
+        // SAFETY: The caller ensures that `offset <= self.source().len()`.
+        match self.borrow_mut() {
+            SlideMut::Zst(slide) => unsafe { slide.set_offset_unchecked(offset) },
+            SlideMut::NonZst(slide) => unsafe { slide.set_offset_unchecked(offset) },
         }
     }
 
-    /// Set the offset for the cursor.
+    /// Set the current offset in the slide if `offset <= self.source().len()`.
     ///
     /// # Returns
     ///
-    /// Returns `None` if `offset > self.source().len()`.
-    #[inline]
+    /// Returns `None` if the offset was not set.
+    #[inline(always)]
     #[track_caller]
-    pub const fn set_offset_checked(&mut self, offset: usize) -> Option<()> {
+    #[must_use]
+    pub(crate) const fn set_offset_checked(&mut self, offset: usize) -> Option<()> {
         if offset <= self.source().len() {
             Some(unsafe { self.set_offset_unchecked(offset) })
         } else {
@@ -183,329 +217,381 @@ impl<T> RawSlide<T> {
         }
     }
 
-    /// Set the offset for the cursor.
+    /// Set the current offset in the slide.
     ///
     /// # Panics
     ///
     /// Panics if `offset > self.source().len()`.
-    #[inline]
+    #[inline(always)]
     #[track_caller]
-    pub const fn set_offset(&mut self, offset: usize) {
-        self.set_offset_checked(offset).expect("out of bounds")
+    pub(crate) const fn set_offset(&mut self, offset: usize) {
+        self.set_offset_checked(offset)
+            .expect("offset > self.source().len()")
     }
 }
 
 impl<T> RawSlide<T> {
-    /// Slide the cursor over in a given direction without any checks.
+    /// Advance the slide `n` elements without any checks.
     ///
     /// # Safety
     ///
-    /// - [`Direction::Right`]: The caller must ensure that `n <= self.remaining().len()`.
-    /// - [`Direction::Left`]: The caller must ensure that `n <= self.consumed().len()`.
-    #[inline]
+    /// The caller must ensure `n <= self.remaining().len()`.
+    #[inline(always)]
     #[track_caller]
-    pub const unsafe fn slide_unchecked(&mut self, dir: Direction, n: usize) {
-        match dir {
-            Direction::Right => {
-                unsafe { hint::assert_unchecked(n <= self.remaining().len()) };
+    pub(crate) const unsafe fn advance_unchecked(&mut self, n: usize) {
+        unsafe {
+            assert_unchecked!(
+                n <= self.remaining().len(),
+                "undefined behavior: `n > self.remaining().len()`"
+            )
+        };
 
-                match self.data.borrow_mut() {
-                    DataMut::Zst(data) => data.offset = unsafe { data.offset.unchecked_add(n) },
-                    DataMut::NonZst(data) => data.cursor = unsafe { data.cursor.add(n) },
-                }
-            }
-            Direction::Left => {
-                unsafe { hint::assert_unchecked(n <= self.consumed().len()) };
-
-                match self.data.borrow_mut() {
-                    DataMut::Zst(data) => data.offset = unsafe { data.offset.unchecked_sub(n) },
-                    DataMut::NonZst(data) => data.cursor = unsafe { data.cursor.sub(n) },
-                }
-            }
+        // SAFETY: The caller ensures this is allowed.
+        match self.borrow_mut() {
+            SlideMut::Zst(slide) => unsafe { slide.advance_unchecked(n) },
+            SlideMut::NonZst(slide) => unsafe { slide.advance_unchecked(n) },
         }
     }
 
-    /// Slide the cursor over in a given direction.
+    /// Advance the slide `n` elements if `n <= self.remaining().len()`.
     ///
     /// # Returns
     ///
-    /// - [`Direction::Right`]: Returns `None` if `n > self.remaining().len()`.
-    /// - [`Direction::Left`]: Returns `None` if `n > self.consumed().len()`.
-    #[inline]
+    /// Returns `None` if the slide was not advanced.
+    #[inline(always)]
     #[track_caller]
-    pub const fn slide_checked(&mut self, dir: Direction, n: usize) -> Option<()> {
-        match dir {
-            Direction::Right if n <= self.remaining().len() => {
-                Some(unsafe { self.slide_unchecked(RIGHT, n) })
-            }
-            Direction::Left if n <= self.consumed().len() => {
-                Some(unsafe { self.slide_unchecked(LEFT, n) })
-            }
-            _ => None,
+    #[must_use]
+    pub(crate) const fn advance_checked(&mut self, n: usize) -> Option<()> {
+        if n <= self.remaining().len() {
+            // SAFETY: We just checked that it is allowed.
+            Some(unsafe { self.advance_unchecked(n) })
+        } else {
+            None
         }
     }
 
-    /// Slide the cursor over in a given direction.
+    /// Rewind the slide `n` elements if `n <= self.consumed().len()`.
+    ///
+    /// # Returns
+    ///
+    /// Returns `None` if the slide was not rewound.
+
+    /// Advance the slide `n` elements.
     ///
     /// # Panics
     ///
-    /// - [`Direction::Right`]: Panics if `n > self.remaining().len()`.
-    /// - [`Direction::Left`]: Panics if `n > self.consumed().len()`.
-    #[inline]
+    /// Panics if `n > self.remaining().len()`.
+    #[inline(always)]
     #[track_caller]
-    pub const fn slide(&mut self, dir: Direction, n: usize) {
-        self.slide_checked(dir, n).expect("out of bounds")
+    pub(crate) const fn advance(&mut self, n: usize) {
+        self.advance_checked(n).expect("n > self.remaining().len()")
     }
 }
 
 impl<T> RawSlide<T> {
-    /// Peek `n` elements in a given direction without any checks.
+    /// Rewind the slide `n` elements without any checks.
     ///
     /// # Safety
     ///
-    /// - [`Direction::Right`]: The caller must ensure `n <= self.remaining().len()`.
-    /// - [`Direction::Left`]: The caller must ensure `n <= self.consumed().len()`.
-    #[inline]
-    #[must_use]
+    /// The caller must ensure `n <= self.consumed().len()`.
+    #[inline(always)]
     #[track_caller]
-    pub const unsafe fn peek_slice_unchecked(&self, dir: Direction, n: usize) -> NonNull<[T]> {
-        match dir {
-            Direction::Right => {
-                unsafe { hint::assert_unchecked(n <= self.remaining().len()) };
+    pub(crate) const unsafe fn rewind_unchecked(&mut self, n: usize) {
+        unsafe {
+            assert_unchecked!(
+                n <= self.consumed().len(),
+                "undefined behavior: `n > self.consumed().len()`"
+            )
+        };
 
-                nonnull_slice(self.remaining().cast(), n)
-            }
-            Direction::Left => {
-                unsafe { hint::assert_unchecked(n <= self.consumed().len()) };
-
-                // NOTE: The start of `self.remaining()` is equivalent to
-                //       the cursor pointer for non-ZSTs.
-                //
-                //       LLVM is able to optimize
-                //       the pointer math to calculate the pointer into
-                //       a no-op read of the cursor pointer.
-                //
-                //       So rather than calculating the new pointer in terms of `consumed`,
-                //       which starts at the `start` pointer, we utilize `remaining` instead
-                //       to open more opportunities for further optimization.
-                //
-                //       I hope this makes sense.
-                //
-                //       Hopefully.
-                //
-                //       It's kinda hard to explain :/
-                nonnull_slice(unsafe { self.remaining().cast().sub(n) }, n)
-            }
+        // SAFETY: The caller ensures this is allowed.
+        match self.borrow_mut() {
+            SlideMut::Zst(slide) => unsafe { slide.rewind_unchecked(n) },
+            SlideMut::NonZst(slide) => unsafe { slide.rewind_unchecked(n) },
         }
     }
 
-    /// Peek `N` elements as an array in a given direction without any checks.
-    ///
-    /// # Safety
-    ///
-    /// - [`Direction::Right`]: The caller must ensure `N <= self.remaining().len()`.
-    /// - [`Direction::Left`]: The caller must ensure `N <= self.consumed().len()`.
-    #[inline]
-    #[must_use]
-    #[track_caller]
-    pub const unsafe fn peek_array_unchecked<const N: usize>(
-        &self,
-        dir: Direction,
-    ) -> NonNull<[T; N]> {
-        unsafe { self.peek_slice_unchecked(dir, N) }.cast()
-    }
-
-    /// Peek the first element in a given direction without any checks.
-    ///
-    /// # Safety
-    ///
-    /// - [`Direction::Right`]: The caller must ensure `!self.remaining().is_empty()`.
-    /// - [`Direction::Left`]: The caller must ensure `!self.consumed().is_empty()`.
-    #[inline]
-    #[must_use]
-    #[track_caller]
-    pub const unsafe fn peek_unchecked(&self, dir: Direction) -> NonNull<T> {
-        unsafe { self.peek_slice_unchecked(dir, 1) }.cast()
-    }
-
-    //// Peek `n` elements in a given direction.
+    /// Rewind the slide `n` elements if `n <= self.consumed().len()`.
     ///
     /// # Returns
     ///
-    /// - [`Direction::Right`]: Returns `None` if `n > self.remaining().len()`.
-    /// - [`Direction::Left`]: Returns `None` if `n > self.consumed().len()`.
-    #[inline]
-    #[must_use]
+    /// Returns `None` if `n > self.consumed().len()`.
+    #[inline(always)]
     #[track_caller]
-    pub const fn peek_slice_checked(&self, dir: Direction, n: usize) -> Option<NonNull<[T]>> {
-        match dir {
-            Direction::Right if n <= self.remaining().len() => {
-                Some(unsafe { self.peek_slice_unchecked(RIGHT, n) })
-            }
-            Direction::Left if n <= self.consumed().len() => {
-                Some(unsafe { self.peek_slice_unchecked(LEFT, n) })
-            }
-            _ => None,
+    #[must_use]
+    pub(crate) const fn rewind_checked(&mut self, n: usize) -> Option<()> {
+        if n <= self.consumed().len() {
+            Some(unsafe { self.rewind_unchecked(n) })
+        } else {
+            None
         }
     }
 
-    /// Peek `N` elements as an array in a given direction.
+    /// Rewind the slide `n` elements.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `n > self.consumed().len()`.
+    #[inline(always)]
+    #[track_caller]
+    pub(crate) const fn rewind(&mut self, n: usize) {
+        self.rewind_checked(n).expect("n > self.consumed().len()")
+    }
+}
+
+impl<T> RawSlide<T> {
+    /// Peek the next `n` elements without checks.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that `n <= self.remaining().len()`.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub(crate) const unsafe fn peek_slice_unchecked(&self, n: usize) -> NonNull<[T]> {
+        unsafe {
+            assert_unchecked!(
+                n <= self.remaining().len(),
+                "undefined behavior: `n > self.remaining().len()`"
+            )
+        };
+
+        match self.borrow() {
+            SlideRef::Zst(slide) => unsafe { slide.peek_slice_unchecked(n) },
+            SlideRef::NonZst(slide) => unsafe { slide.peek_slice_unchecked(n) },
+        }
+    }
+
+    /// Peek the next `N` elements as an array without checks.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that `N <= self.remaining().len()`.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub(crate) const unsafe fn peek_array_unchecked<const N: usize>(&self) -> NonNull<[T; N]> {
+        unsafe {
+            assert_unchecked!(
+                N <= self.remaining().len(),
+                "undefined behavior: `N > self.remaining().len()`"
+            )
+        };
+
+        unsafe { self.peek_slice_unchecked(N) }.cast()
+    }
+
+    /// Peek the next element without checks.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that `self.remaining().len() != 0`
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub(crate) const unsafe fn peek_unchecked(&self) -> NonNull<T> {
+        unsafe {
+            assert_unchecked!(
+                self.remaining().len() != 0,
+                "undefined behavior: `self.remaining().len() == 0`"
+            )
+        };
+
+        unsafe { self.peek_slice_unchecked(1) }.cast()
+    }
+
+    /// Peek the next `n` elements if `n <= self.remaining().len()`.
     ///
     /// # Returns
     ///
-    /// - [`Direction::Right`]: Returns `None` if `N > self.remaining().len()`.
-    /// - [`Direction::Left`]: Returns `None` if `N > self.consumed().len()`.
-    #[inline]
+    /// Returns `None` if `n > self.remaining().len()`.
+    #[inline(always)]
     #[must_use]
     #[track_caller]
-    pub const fn peek_array_checked<const N: usize>(
-        &self,
-        dir: Direction,
-    ) -> Option<NonNull<[T; N]>> {
-        match self.peek_slice_checked(dir, N) {
+    pub(crate) const fn peek_slice_checked(&self, n: usize) -> Option<NonNull<[T]>> {
+        if n <= self.remaining().len() {
+            Some(unsafe { self.peek_slice_unchecked(n) })
+        } else {
+            None
+        }
+    }
+
+    /// Peek the next `N` elements as an array if `N <= self.remaining().len()`.
+    ///
+    /// # Returns
+    ///
+    /// Returns `None` if `N > self.remaining().len()`.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub(crate) const fn peek_array_checked<const N: usize>(&self) -> Option<NonNull<[T; N]>> {
+        match self.peek_slice_checked(N) {
             Some(ptr) => Some(ptr.cast()),
             None => None,
         }
     }
 
-    /// Peek the first element in a given direction.
+    /// Peek the next element if `self.remaining().len() != 0`.
     ///
     /// # Returns
     ///
-    /// - [`Direction::Right`]: Returns `None` if `self.remaining().is_empty()`.
-    /// - [`Direction::Left`]: Returns `None` if `self.remaining().is_empty()`.
-    #[inline]
+    /// Returns `None` if `self.remaining().len() == 0`
+    #[inline(always)]
     #[must_use]
     #[track_caller]
-    pub const fn peek_checked(&self, dir: Direction) -> Option<NonNull<T>> {
-        match self.peek_slice_checked(dir, 1) {
+    pub(crate) const fn peek_checked(&self) -> Option<NonNull<T>> {
+        match self.peek_slice_checked(1) {
             Some(ptr) => Some(ptr.cast()),
             None => None,
         }
     }
 
-    /// Peek `n` elements in a given direction.
+    /// Peek the next `n` elements.
     ///
     /// # Panics
     ///
-    /// - [`Direction::Right`]: Panics if `n > self.remaining().len()`.
-    /// - [`Direction::Left`]: Panics if `n > self.consumed().len()`.
-    #[inline]
+    /// Panics if `n > self.remaining().len()`.
+    #[inline(always)]
     #[must_use]
     #[track_caller]
-    pub const fn peek_slice(&self, dir: Direction, n: usize) -> NonNull<[T]> {
-        self.peek_slice_checked(dir, n).expect("out of bounds")
+    pub(crate) const fn peek_slice(&self, n: usize) -> NonNull<[T]> {
+        self.peek_slice_checked(n)
+            .expect("n > self.remaining().len()")
     }
 
-    /// Peek `N` elements as an array in a given direction.
+    /// Peek the next `N` elements as an array.
     ///
     /// # Panics
     ///
-    /// - [`Direction::Right`]: Panics if `N > self.remaining().len()`.
-    /// - [`Direction::Left`]: Panics if `N > self.consumed().len()`.
-    #[inline]
+    /// Panics if `N > self.remaining().len()`.
+    #[inline(always)]
     #[must_use]
     #[track_caller]
-    pub const fn peek_array<const N: usize>(&self, dir: Direction) -> NonNull<[T; N]> {
-        self.peek_slice(dir, N).cast()
+    pub(crate) const fn peek_array<const N: usize>(&self) -> NonNull<[T; N]> {
+        self.peek_array_checked::<N>()
+            .expect("N > self.remaining().len()")
     }
 
-    /// Peek the first element in a given direction.
+    /// Peek the next element.
     ///
     /// # Panics
     ///
-    /// - [`Direction::Right`]: Panics if `self.remaining().is_empty()`.
-    /// - [`Direction::Left`]: Panics if `self.consumed().is_empty()`.
-    #[inline]
+    /// Panics if `self.remaining().len() == 0`.
+    #[inline(always)]
     #[must_use]
     #[track_caller]
-    pub const fn peek(&self, dir: Direction) -> NonNull<T> {
-        self.peek_slice(dir, 1).cast()
+    pub(crate) const fn peek(&self) -> NonNull<T> {
+        self.peek_checked().expect("self.remaining().len() == 0")
     }
 }
 
-// NOTE: It doesn't make a whole lot of sense to take from the consumed buffer,
-//       as it being consumed implies it was already taken.
-//
-//       We're unsure of whether implementing these methods in a direction agnostic
-//       manner makes all that much sense with that taken into consideration.
-// impl<T> RawSlide<T> {
-//     #[inline]
-//     #[must_use]
-//     #[track_caller]
-//     pub const unsafe fn take_slice_unchecked(&mut self, n: usize) -> NonNull<[T]> {
-//         let slice = unsafe { self.peek_slice_unchecked(RIGHT, n) };
-//         unsafe { self.slide_unchecked(RIGHT, n) };
+impl<T> RawSlide<T> {
+    /// Peek the last `n` elements without checks.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure `n <= self.consumed().len()`.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub(crate) const unsafe fn peek_back_slice_unchecked(&self, n: usize) -> NonNull<[T]> {
+        unsafe {
+            assert_unchecked!(
+                n <= self.consumed().len(),
+                "undefined behavior: `n > self.consumed().len()`"
+            )
+        };
 
-//         slice
-//     }
+        match self.borrow() {
+            SlideRef::Zst(slide) => unsafe { slide.peek_back_slice_unchecked(n) },
+            SlideRef::NonZst(slide) => unsafe { slide.peek_back_slice_unchecked(n) },
+        }
+    }
 
-//     #[inline]
-//     #[must_use]
-//     #[track_caller]
-//     pub const unsafe fn take_array_unchecked<const N: usize>(&mut self) -> NonNull<[T; N]> {
-//         unsafe { self.take_slice_unchecked(N) }.cast()
-//     }
+    /// Peek the last `N` elements as an array without checks.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure `N <= self.consumed().len()`.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub(crate) const unsafe fn peek_back_array_unchecked<const N: usize>(&self) -> NonNull<[T; N]> {
+        unsafe {
+            assert_unchecked!(
+                N <= self.consumed().len(),
+                "undefined behavior: `N > self.consumed().len()`"
+            )
+        };
 
-//     #[inline]
-//     #[must_use]
-//     #[track_caller]
-//     pub const unsafe fn take_unchecked(&mut self) -> NonNull<T> {
-//         unsafe { self.take_slice_unchecked(1) }.cast()
-//     }
+        unsafe { self.peek_back_slice_unchecked(N) }.cast()
+    }
 
-//     #[inline]
-//     #[must_use]
-//     #[track_caller]
-//     pub const fn take_slice_checked(&mut self, n: usize) -> Option<NonNull<[T]>> {
-//         if n <= self.remaining().len() {
-//             Some(unsafe { self.take_slice_unchecked(n) })
-//         } else {
-//             None
-//         }
-//     }
+    /// Peek the last element without checks.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure `self.consumed().len() != 0`.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub(crate) const unsafe fn peek_back_unchecked(&self) -> NonNull<T> {
+        unsafe {
+            assert_unchecked!(
+                self.consumed().len() != 0,
+                "undefined behavior: `self.consumed().len() == 0`"
+            )
+        };
 
-//     #[inline]
-//     #[must_use]
-//     #[track_caller]
-//     pub const fn take_array_checked<const N: usize>(&mut self) -> Option<NonNull<[T; N]>> {
-//         match self.take_slice_checked(N) {
-//             Some(ptr) => Some(ptr.cast()),
-//             None => None,
-//         }
-//     }
+        unsafe { self.peek_back_slice_unchecked(1) }.cast()
+    }
 
-//     #[inline]
-//     #[must_use]
-//     #[track_caller]
-//     pub const fn take_checked(&mut self) -> Option<NonNull<T>> {
-//         match self.take_slice_checked(1) {
-//             Some(ptr) => Some(ptr.cast()),
-//             None => None,
-//         }
-//     }
+    /// Peek the last `n` elements if `n <= self.consumed().len()`.
+    ///
+    /// # Returns
+    ///
+    /// Returns `None` if `n > self.consumed().len()`.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub(crate) const fn peek_back_slice_checked(&self, n: usize) -> Option<NonNull<[T]>> {
+        if n <= self.consumed().len() {
+            Some(unsafe { self.peek_back_slice_unchecked(n) })
+        } else {
+            None
+        }
+    }
 
-//     #[inline]
-//     #[must_use]
-//     #[track_caller]
-//     pub const fn take_slice(&mut self, n: usize) -> NonNull<[T]> {
-//         self.take_slice_checked(n).expect("out of bounds")
-//     }
+    /// Peek the last `N` elements as an array if `N <= self.consumed().len()`.
+    ///
+    /// # Returns
+    ///
+    /// Returns `None` if `N > self.consumed().len()`.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub(crate) const fn peek_back_array_checked<const N: usize>(&self) -> Option<NonNull<[T; N]>> {
+        match self.peek_back_slice_checked(N) {
+            Some(ptr) => Some(ptr.cast()),
+            None => None,
+        }
+    }
 
-//     #[inline]
-//     #[must_use]
-//     #[track_caller]
-//     pub const fn take_array<const N: usize>(&mut self) -> NonNull<[T; N]> {
-//         self.take_slice(N).cast()
-//     }
-
-//     #[inline]
-//     #[must_use]
-//     #[track_caller]
-//     pub const fn take(&mut self) -> NonNull<T> {
-//         self.take_slice(1).cast()
-//     }
-// }
+    /// Peek the last element if `self.consumed().len() != 0`.
+    ///
+    /// # Returns
+    ///
+    /// Returns `None` if `self.consumed().len() == 0`.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub(crate) const fn peek_back_checked(&self) -> Option<NonNull<T>> {
+        match self.peek_back_slice_checked(1) {
+            Some(ptr) => Some(ptr.cast()),
+            None => None,
+        }
+    }
+}
 
 impl<T> Clone for RawSlide<T> {
     #[inline]
@@ -515,3 +601,13 @@ impl<T> Clone for RawSlide<T> {
 }
 
 impl<T> Copy for RawSlide<T> {}
+
+enum SlideRef<'a, T> {
+    Zst(&'a zst::Slide<T>),
+    NonZst(&'a non_zst::Slide<T>),
+}
+
+enum SlideMut<'a, T> {
+    Zst(&'a mut zst::Slide<T>),
+    NonZst(&'a mut non_zst::Slide<T>),
+}
