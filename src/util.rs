@@ -33,6 +33,105 @@ macro_rules! assert_unchecked {
 
 pub(crate) use assert_unchecked;
 
+/// Marks some code path as cold.
+#[inline(always)]
+#[cold]
+#[allow(dead_code)]
+pub(crate) const fn cold<T>(x: T) -> T {
+    x
+}
+
+/// Marks some condition as likely.
+#[inline(always)]
+#[must_use]
+#[allow(dead_code)]
+pub(crate) const fn likely(cond: bool) -> bool {
+    if !cond {
+        cold(());
+    }
+
+    cond
+}
+
+/// Marks some condition as unlikely.
+#[inline(always)]
+#[must_use]
+#[allow(dead_code)]
+pub(crate) const fn unlikely(cond: bool) -> bool {
+    if cond {
+        cold(());
+    }
+
+    cond
+}
+
+/// Unchecked signed addition for [`usize`].
+#[inline(always)]
+#[track_caller]
+#[must_use]
+pub(crate) const unsafe fn unchecked_add_signed(lhs: usize, rhs: isize) -> usize {
+    let (res, overflow) = lhs.overflowing_add_signed(rhs);
+
+    unsafe { assert_unchecked!(!overflow, "undefined behavior: overflow") };
+
+    res
+}
+
+/// Overflowing signed difference for [`usize`].
+#[inline(always)]
+#[must_use]
+#[allow(dead_code)]
+pub(crate) const fn overflowing_signed_diff(lhs: usize, rhs: usize) -> (isize, bool) {
+    // Overflow cases (`lhs` and `rhs` are unsigned, `res` is signed):
+    //
+    //
+    // if `lhs >= rhs && res < 0` {
+    //
+    //     In this case, `lhs - rhs` does not overflow, but the resulting value
+    //     looks negative, when it shouldn't.
+    //
+    // } else if `lhs < rhs && res >= 0` {
+    //
+    //     In this case, `lhs - rhs` does overflow, but the resulting value
+    //     looks non-negative, when it shouldn't.
+    //
+    // }
+    //
+    // This can be represented as the following boolean expression:
+    //     `(lhs >= rhs && res < 0) || (lhs < rhs && res >= 0)`
+    // which can be simplified as
+    //     `(lhs >= rhs) == (res < 0)`
+    // .
+    let res = lhs.wrapping_sub(rhs) as isize;
+    let overflow = (lhs >= rhs) == (res < 0);
+
+    (res, overflow)
+}
+
+/// Unchecked signed difference for [`usize`].
+#[inline(always)]
+#[track_caller]
+#[must_use]
+#[allow(dead_code)]
+pub(crate) const unsafe fn unchecked_signed_diff(lhs: usize, rhs: usize) -> isize {
+    let (res, overflow) = overflowing_signed_diff(lhs, rhs);
+
+    unsafe { assert_unchecked!(!overflow, "undefined behavior: overflow") };
+
+    res
+}
+
+/// Checked signed difference for [`usize`].
+#[inline(always)]
+#[track_caller]
+#[must_use]
+#[allow(dead_code)]
+pub(crate) const fn checked_signed_diff(lhs: usize, rhs: usize) -> Option<isize> {
+    let (res, overflow) = overflowing_signed_diff(lhs, rhs);
+
+    if !overflow { Some(res) } else { None }
+}
+
 /// Computes the length of a given pointer range.
 ///
 /// # Safety
@@ -55,6 +154,7 @@ pub(crate) use assert_unchecked;
 #[inline(always)]
 #[must_use]
 #[track_caller]
+#[allow(dead_code)]
 pub(crate) const unsafe fn ptr_len<T>(Range { start, end }: Range<*const T>) -> usize {
     assert!(size_of::<T>() != 0, "size must be nonzero");
 
@@ -70,6 +170,28 @@ pub(crate) const unsafe fn ptr_len<T>(Range { start, end }: Range<*const T>) -> 
 #[must_use]
 pub(crate) const fn nonnull_slice<T>(ptr: NonNull<T>, len: usize) -> NonNull<[T]> {
     NonNull::new(ptr::slice_from_raw_parts_mut(ptr.as_ptr(), len)).unwrap()
+}
+
+/// Create a [`NonNull`] subslice pointer.
+#[inline(always)]
+#[track_caller]
+#[must_use]
+pub(crate) const unsafe fn nonnull_subslice<T>(
+    slice: NonNull<[T]>,
+    Range { start, end }: Range<usize>,
+) -> NonNull<[T]> {
+    unsafe {
+        assert_unchecked!(start <= end, "undefined behavior: `start > end`");
+        assert_unchecked!(
+            end <= slice.len(),
+            "undefined behavior: `end > slice.len()`"
+        );
+    }
+
+    let new_len = end.checked_sub(start).unwrap();
+    let new_ptr = unsafe { slice.cast::<T>().add(start) };
+
+    nonnull_slice(new_ptr, new_len)
 }
 
 /// Create a [`NonNull`] pointer from a reference.

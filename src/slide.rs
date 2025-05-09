@@ -1,8 +1,7 @@
 use core::{fmt, hash, marker::PhantomData, ops::Index, slice::SliceIndex};
 
-use crate::{Direction, SlideMut, raw::RawSlide};
+use crate::{raw::RawSlide, util::nonnull_from_ref};
 
-/// A slide over an immutable buffer.
 #[repr(transparent)]
 pub struct Slide<'a, T> {
     raw: RawSlide<T>,
@@ -10,111 +9,151 @@ pub struct Slide<'a, T> {
 }
 
 impl<'a, T> Slide<'a, T> {
-    #[inline]
+    /// Create a new [`Slide`] from a `slice` and `offset` without checks.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that `offset <= slice.len()`.
+    #[inline(always)]
     #[must_use]
-    pub(crate) const unsafe fn from_raw(raw: RawSlide<T>) -> Self {
+    #[track_caller]
+    pub const unsafe fn from_parts_unchecked(slice: &'a [T], offset: usize) -> Self {
         Self {
-            raw,
+            raw: unsafe { RawSlide::from_parts_unchecked(nonnull_from_ref(slice), offset) },
             _marker: PhantomData,
         }
     }
 
-    /// Create a new [`Slide`] starting at the start of the slice.
-    #[inline]
-    #[must_use]
-    pub const fn new(slice: &'a [T]) -> Self {
-        unsafe { Self::from_raw(RawSlide::from_slice(slice)) }
-    }
-
-    /// Create a new [`Slide`] starting at `offset`.
+    /// Create a new [`Slide`] from a `slice` and `offset` if `offset <= slice.len()`.
     ///
     /// # Returns
     ///
-    /// Returns `None` if `offset` is out of bounds for `slice`.
-    #[inline]
+    /// Returns `None` if `offset > slice.len()`.
+    #[inline(always)]
     #[must_use]
-    pub const fn with_offset(slice: &'a [T], offset: usize) -> Option<Self> {
-        match RawSlide::from_slice_offset(slice, offset) {
-            Some(raw) => Some(unsafe { Self::from_raw(raw) }),
-            None => None,
+    #[track_caller]
+    pub const fn from_parts_checked(slice: &'a [T], offset: usize) -> Option<Self> {
+        if offset <= slice.len() {
+            Some(unsafe { Self::from_parts_unchecked(slice, offset) })
+        } else {
+            None
         }
     }
 
-    /// Returns the offset of the cursor within the buffer.
-    #[inline]
+    /// Create a new [`Slide`] from a `slice` and `offset`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `offset > slice.len()`.
+    #[inline(always)]
     #[must_use]
-    pub const fn offset(&self) -> usize {
-        let (offset, _) = self.raw.offset_len();
-
-        offset
+    #[track_caller]
+    pub const fn from_parts(slice: &'a [T], offset: usize) -> Self {
+        Self::from_parts_checked(slice, offset).expect("offset > slice.len()")
     }
 
-    // /// This creates a new slide with a smaller lifetime.
-    // #[inline]
-    // #[must_use]
-    // pub const fn as_slide(&self) -> Slide<'_, T> {
-    //     *self
-    // }
-
-    /// Returns a reference to the source slice.
-    #[inline]
+    /// Create a new [`Slide`] from a `slice`.
+    #[inline(always)]
     #[must_use]
-    pub const fn source(&self) -> &'a [T] {
-        unsafe { self.raw.source().as_ref() }
+    #[track_caller]
+    pub const fn new(slice: &'a [T]) -> Self {
+        Self::from_parts(slice, 0)
     }
 
-    /// Returns a reference to the consumed slice.
-    #[inline]
-    #[must_use]
-    pub const fn consumed(&self) -> &'a [T] {
-        unsafe { self.raw.consumed().as_ref() }
-    }
-
-    /// Returns a reference to the remaining slice.
-    #[inline]
-    #[must_use]
-    pub const fn remaining(&self) -> &'a [T] {
-        unsafe { self.raw.remaining().as_ref() }
-    }
-
-    /// Split the source buffer at the cursor.
-    #[inline]
-    #[must_use]
-    pub const fn split(&self) -> (&'a [T], &'a [T]) {
-        (self.consumed(), self.remaining())
+    /// Provide hints to the compiler.
+    #[inline(always)]
+    #[track_caller]
+    pub const fn compiler_hints(&self) {
+        self.raw.compiler_hints()
     }
 }
 
 impl<'a, T> Slide<'a, T> {
-    /// Set the offset for the cursor without any checks.
+    /// Returns whether the slide is fully consumed.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub const fn is_consumed(&self) -> bool {
+        self.raw.is_consumed()
+    }
+
+    /// Return the source slice.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub const fn source(&self) -> &'a [T] {
+        unsafe { self.raw.source().as_ref() }
+    }
+
+    /// Return the consumed slice.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub const fn consumed(&self) -> &'a [T] {
+        unsafe { self.raw.consumed().as_ref() }
+    }
+
+    /// Return the remaining slice.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub const fn remaining(&self) -> &'a [T] {
+        unsafe { self.raw.remaining().as_ref() }
+    }
+
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub const fn split(&self) -> (&'a [T], &'a [T]) {
+        (self.consumed(), self.remaining())
+    }
+
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub const fn parts(&self) -> (&'a [T], usize) {
+        (self.source(), self.offset())
+    }
+}
+
+impl<'a, T> Slide<'a, T> {
+    /// Returns the offset for the cursor.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub const fn offset(&self) -> usize {
+        self.raw.offset()
+    }
+
+    /// Updates the current offset of the cursor without checks.
     ///
     /// # Safety
     ///
-    /// The caller must ensure that `offset <= self.source().len()`.
-    #[inline]
+    /// The caller must ensure `offset <= self.source().len()`.
+    #[inline(always)]
     #[track_caller]
     pub const unsafe fn set_offset_unchecked(&mut self, offset: usize) {
         unsafe { self.raw.set_offset_unchecked(offset) }
     }
 
-    /// Set the offset for the cursor.
+    /// Updates the current offset of the cursor if `offset <= self.source().len()`.
     ///
     /// # Returns
     ///
-    /// Returns `offset <= self.source().len()`.
-    #[inline]
+    ///  Returns whether the cursor's offset was updated.
+    #[inline(always)]
     #[must_use]
     #[track_caller]
     pub const fn set_offset_checked(&mut self, offset: usize) -> bool {
-        self.raw.set_offset_checked(offset).is_some()
+        self.raw.set_offset_checked(offset)
     }
 
-    /// Set the offset for the cursor.
+    /// Updates the current offset of the cursor.
     ///
     /// # Panics
     ///
     /// Panics if `offset > self.source().len()`.
-    #[inline]
+    #[inline(always)]
     #[track_caller]
     pub const fn set_offset(&mut self, offset: usize) {
         self.raw.set_offset(offset)
@@ -122,173 +161,163 @@ impl<'a, T> Slide<'a, T> {
 }
 
 impl<'a, T> Slide<'a, T> {
-    /// Slide the cursor over in a given direction without any checks.
+    /// Peek the next `n` elements without any checks.
     ///
     /// # Safety
     ///
-    /// - [`Direction::Right`]: The caller must ensure that `n <= self.remaining().len()`.
-    /// - [`Direction::Left`]: The caller must ensure that `n <= self.consumed().len()`.
-    #[inline]
+    /// The caller must ensure `n <= self.remaining().len()`.
+    #[inline(always)]
+    #[must_use]
     #[track_caller]
-    pub const unsafe fn slide_unchecked(&mut self, dir: Direction, n: usize) {
-        unsafe { self.raw.slide_unchecked(dir, n) }
+    pub const unsafe fn peek_unchecked(&self, n: usize) -> &'a [T] {
+        unsafe { self.raw.peek_unchecked(n).as_ref() }
     }
 
-    /// Slide the cursor over in a given direction.
+    /// Peek the previous `n` elements without any checks.
     ///
-    /// # Returns
+    /// # Safety
     ///
-    /// - [`Direction::Right`]: Returns `n <= self.remaining().len()`.
-    /// - [`Direction::Left`]: Returns `n <= self.consumed().len()`.
-    #[inline]
+    /// The caller must ensure `n <= self.consumed().len()`.
+    #[inline(always)]
+    #[must_use]
     #[track_caller]
-    pub const fn slide_checked(&mut self, dir: Direction, n: usize) -> bool {
-        self.raw.slide_checked(dir, n).is_some()
+    pub const unsafe fn peek_back_unchecked(&self, n: usize) -> &'a [T] {
+        unsafe { self.raw.peek_back_unchecked(n).as_ref() }
     }
 
-    /// Slide the cursor over in a given direction.
+    /// Advance the next `n` elements without any checks.
     ///
-    /// # Panics
+    /// # Safety
     ///
-    /// - [`Direction::Right`]: Panics if `n > self.remaining().len()`.
-    /// - [`Direction::Left`]: Panics if `n > self.consumed().len()`.
-    #[inline]
+    /// The caller must ensure `n <= self.remaining().len()`.
+    #[inline(always)]
     #[track_caller]
-    pub const fn slide(&mut self, dir: Direction, n: usize) {
-        self.raw.slide(dir, n)
+    pub const unsafe fn advance_unchecked(&mut self, n: usize) -> &'a [T] {
+        unsafe { self.raw.advance_unchecked(n).as_ref() }
+    }
+
+    /// Rewind the previous `n` elements.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure `n <= self.consumed().len()`.
+    #[inline(always)]
+    #[track_caller]
+    pub const unsafe fn rewind_unchecked(&mut self, n: usize) -> &'a [T] {
+        unsafe { self.raw.rewind_unchecked(n).as_ref() }
     }
 }
 
 impl<'a, T> Slide<'a, T> {
-    /// Peek `n` elements in a given direction without any checks.
-    ///
-    /// # Safety
-    ///
-    /// - [`Direction::Right`]: The caller must ensure `n <= self.remaining().len()`.
-    /// - [`Direction::Left`]: The caller must ensure `n <= self.consumed().len()`.
-    #[inline]
-    #[must_use]
-    #[track_caller]
-    pub const unsafe fn peek_slice_unchecked(&self, dir: Direction, n: usize) -> &'a [T] {
-        unsafe { self.raw.peek_slice_unchecked(dir, n).as_ref() }
-    }
-
-    /// Peek `N` elements as an array in a given direction without any checks.
-    ///
-    /// # Safety
-    ///
-    /// - [`Direction::Right`]: The caller must ensure `N <= self.remaining().len()`.
-    /// - [`Direction::Left`]: The caller must ensure `N <= self.consumed().len()`.
-    #[inline]
-    #[must_use]
-    #[track_caller]
-    pub const unsafe fn peek_array_unchecked<const N: usize>(&self, dir: Direction) -> &'a [T; N] {
-        unsafe { self.raw.peek_array_unchecked::<N>(dir).as_ref() }
-    }
-
-    /// Peek the first element in a given direction without any checks.
-    ///
-    /// # Safety
-    ///
-    /// - [`Direction::Right`]: The caller must ensure `!self.remaining().is_empty()`.
-    /// - [`Direction::Left`]: The caller must ensure `!self.consumed().is_empty()`.
-    #[inline]
-    #[must_use]
-    #[track_caller]
-    pub const unsafe fn peek_unchecked(&self, dir: Direction) -> &'a T {
-        unsafe { self.raw.peek_unchecked(dir).as_ref() }
-    }
-
-    /// Peek `n` elements in a given direction.
+    /// Peek the next `n` elements if `n <= self.remaining().len()`.
     ///
     /// # Returns
     ///
-    /// - [`Direction::Right`]: Returns `None` if `n > self.remaining().len()`.
-    /// - [`Direction::Left`]: Returns `None` if `n > self.consumed().len()`.
-    #[inline]
+    /// Returns `None` if `n > self.remaining().len()`.
+    #[inline(always)]
     #[must_use]
     #[track_caller]
-    pub const fn peek_slice_checked(&self, dir: Direction, n: usize) -> Option<&'a [T]> {
-        match self.raw.peek_slice_checked(dir, n) {
+    pub const fn peek_checked(&self, n: usize) -> Option<&'a [T]> {
+        match self.raw.peek_checked(n) {
             Some(ptr) => Some(unsafe { ptr.as_ref() }),
             None => None,
         }
     }
 
-    /// Peek `N` elements as an array in a given direction.
+    /// Peek the previous `n` elements if `n <= self.consumed().len()`.
     ///
     /// # Returns
     ///
-    /// - [`Direction::Right`]: Returns `None` if `N > self.remaining().len()`.
-    /// - [`Direction::Left`]: Returns `None` if `N > self.consumed().len()`.
-    #[inline]
+    /// Returns `None` if `n > self.consumed().len()`.
+    #[inline(always)]
     #[must_use]
     #[track_caller]
-    pub const fn peek_array_checked<const N: usize>(&self, dir: Direction) -> Option<&'a [T; N]> {
-        match self.raw.peek_array_checked(dir) {
+    pub const fn peek_back_checked(&self, n: usize) -> Option<&'a [T]> {
+        match self.raw.peek_back_checked(n) {
             Some(ptr) => Some(unsafe { ptr.as_ref() }),
             None => None,
         }
     }
 
-    /// Peek the first element in a given direction.
+    /// Advance the next `n` elements if `n <= self.remaining().len()`.
     ///
     /// # Returns
     ///
-    /// - [`Direction::Right`]: Returns `None` if `self.remaining().is_empty()`.
-    /// - [`Direction::Left`]: Returns `None` if `self.consumed().is_empty()`.
-    #[inline]
-    #[must_use]
+    /// Returns `None` if `n > self.remaining().len()`.
+    #[inline(always)]
     #[track_caller]
-    pub const fn peek_checked(&self, dir: Direction) -> Option<&'a T> {
-        match self.raw.peek_checked(dir) {
+    pub const fn advance_checked(&mut self, n: usize) -> Option<&'a [T]> {
+        match self.raw.advance_checked(n) {
             Some(ptr) => Some(unsafe { ptr.as_ref() }),
             None => None,
         }
     }
 
-    /// Peek `n` elements in a given direction.
+    /// Rewind the previous `n` elements if `n <= self.consumed().len()`.
+    ///
+    /// # Returns
+    ///
+    /// Returns `None` if `n > self.consumed().len()`.
+    #[inline(always)]
+    #[track_caller]
+    pub const fn rewind_checked(&mut self, n: usize) -> Option<&'a [T]> {
+        match self.raw.rewind_checked(n) {
+            Some(ptr) => Some(unsafe { ptr.as_ref() }),
+            None => None,
+        }
+    }
+}
+
+impl<'a, T> Slide<'a, T> {
+    /// Peek the next `n` elements if `n <= self.remaining().len()`.
     ///
     /// # Panics
     ///
-    /// - [`Direction::Right`]: Panics if `n > self.remaining().len()`.
-    /// - [`Direction::Left`]: Panics if `n > self.consumed().len()`.
-    #[inline]
+    /// Panics if `n > self.remaining().len()`.
+    #[inline(always)]
     #[must_use]
     #[track_caller]
-    pub const fn peek_slice(&self, dir: Direction, n: usize) -> &'a [T] {
-        unsafe { self.raw.peek_slice(dir, n).as_ref() }
+    pub const fn peek(&self, n: usize) -> &'a [T] {
+        unsafe { self.raw.peek(n).as_ref() }
     }
 
-    /// Peek `N` elements as an array in a given direction.
+    /// Peek the previous `n` elements if `n <= self.consumed().len()`.
     ///
     /// # Panics
     ///
-    /// - [`Direction::Right`]: Panics if `N > self.remaining().len()`.
-    /// - [`Direction::Left`]: Panics if `N > self.consumed().len()`.
-    #[inline]
+    /// Panics if `n > self.consumed().len()`.
+    #[inline(always)]
     #[must_use]
     #[track_caller]
-    pub const fn peek_array<const N: usize>(&self, dir: Direction) -> &'a [T; N] {
-        unsafe { self.raw.peek_array::<N>(dir).as_ref() }
+    pub const fn peek_back(&self, n: usize) -> &'a [T] {
+        unsafe { self.raw.peek_back(n).as_ref() }
     }
 
-    /// Peek the next element in a given direction.
+    /// Advance the next `n` elements if `n <= self.remaining().len()`.
     ///
     /// # Panics
     ///
-    /// - [`Direction::Right`]: Panics if `self.remaining().is_empty()`.
-    /// - [`Direction::Left`]: Panics if `self.consumed().is_empty()`.
-    #[inline]
-    #[must_use]
+    /// Panics if `n > self.remaining().len()`.
+    #[inline(always)]
     #[track_caller]
-    pub const fn peek(&self, dir: Direction) -> &'a T {
-        unsafe { self.raw.peek(dir).as_ref() }
+    pub const fn advance(&mut self, n: usize) -> &'a [T] {
+        unsafe { self.raw.advance(n).as_ref() }
+    }
+
+    /// Rewind the previous `n` elements if `n <= self.consumed().len()`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `n > self.consumed().len()`.
+    #[inline(always)]
+    #[track_caller]
+    pub const fn rewind(&mut self, n: usize) -> &'a [T] {
+        unsafe { self.raw.rewind(n).as_ref() }
     }
 }
 
 impl<'a, T> Clone for Slide<'a, T> {
-    #[inline]
+    #[inline(always)]
     fn clone(&self) -> Self {
         *self
     }
@@ -299,10 +328,72 @@ impl<'a, T> Copy for Slide<'a, T> {}
 unsafe impl<'a, T> Send for Slide<'a, T> where &'a [T]: Send {}
 unsafe impl<'a, T> Sync for Slide<'a, T> where &'a [T]: Sync {}
 
+impl<'a, T: PartialEq> PartialEq for Slide<'a, T> {
+    #[inline(always)]
+    fn eq(&self, other: &Self) -> bool {
+        self.parts() == other.parts()
+    }
+
+    #[inline(always)]
+    fn ne(&self, other: &Self) -> bool {
+        self.parts() != other.parts()
+    }
+}
+
+impl<'a, T: Eq> Eq for Slide<'a, T> {}
+
+impl<'a, T: PartialOrd> PartialOrd for Slide<'a, T> {
+    #[inline(always)]
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        self.parts().partial_cmp(&other.parts())
+    }
+
+    #[inline(always)]
+    fn lt(&self, other: &Self) -> bool {
+        self.parts() < other.parts()
+    }
+
+    #[inline(always)]
+    fn le(&self, other: &Self) -> bool {
+        self.parts() <= other.parts()
+    }
+
+    #[inline(always)]
+    fn gt(&self, other: &Self) -> bool {
+        self.parts() > other.parts()
+    }
+
+    #[inline(always)]
+    fn ge(&self, other: &Self) -> bool {
+        self.parts() >= other.parts()
+    }
+}
+
+impl<'a, T: Ord> Ord for Slide<'a, T> {
+    #[inline(always)]
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.parts().cmp(&other.parts())
+    }
+}
+
+impl<'a, T: hash::Hash> hash::Hash for Slide<'a, T> {
+    #[inline(always)]
+    fn hash<H: hash::Hasher>(&self, state: &mut H) {
+        self.parts().hash(state)
+    }
+}
+
+impl<'a, T> Default for Slide<'a, T> {
+    #[inline(always)]
+    fn default() -> Self {
+        Self::new(&[])
+    }
+}
+
 impl<'a, T: fmt::Debug> fmt::Debug for Slide<'a, T> {
-    #[inline]
+    #[inline(always)]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let (consumed, remaining) = self.split();
+        let (consumed, remaining) = self.parts();
 
         f.debug_struct("Slide")
             .field("consumed", &consumed)
@@ -311,95 +402,17 @@ impl<'a, T: fmt::Debug> fmt::Debug for Slide<'a, T> {
     }
 }
 
-impl<'a, 'b, T, U> PartialEq<Slide<'b, U>> for Slide<'a, T>
-where
-    T: PartialEq<U>,
-{
-    #[inline]
-    fn eq(&self, other: &Slide<'b, U>) -> bool {
-        self.consumed() == other.consumed() && self.remaining() == other.remaining()
-    }
-}
-
-impl<'a, 'b, T, U> PartialEq<SlideMut<'b, U>> for Slide<'a, T>
-where
-    T: PartialEq<U>,
-{
-    #[inline]
-    fn eq(&self, other: &SlideMut<'b, U>) -> bool {
-        self.consumed() == other.consumed() && self.remaining() == other.remaining()
-    }
-}
-
-impl<'a, T> Eq for Slide<'a, T> where T: Eq {}
-
-impl<'a, 'b, T> PartialOrd<Slide<'b, T>> for Slide<'a, T>
-where
-    T: PartialOrd,
-{
-    #[inline]
-    fn partial_cmp(&self, other: &Slide<'b, T>) -> Option<core::cmp::Ordering> {
-        let consumed = self.consumed().partial_cmp(other.consumed())?;
-        let remaining = self.remaining().partial_cmp(other.remaining())?;
-
-        Some(consumed.then(remaining))
-    }
-}
-
-impl<'a, 'b, T> PartialOrd<SlideMut<'b, T>> for Slide<'a, T>
-where
-    T: PartialOrd,
-{
-    #[inline]
-    fn partial_cmp(&self, other: &SlideMut<'b, T>) -> Option<core::cmp::Ordering> {
-        let consumed = self.consumed().partial_cmp(other.consumed())?;
-        let remaining = self.remaining().partial_cmp(other.remaining())?;
-
-        Some(consumed.then(remaining))
-    }
-}
-
-impl<'a, T> Ord for Slide<'a, T>
-where
-    T: Ord,
-{
-    #[inline]
-    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
-        self.consumed()
-            .cmp(other.consumed())
-            .then_with(|| self.remaining().cmp(other.remaining()))
-    }
-}
-
-impl<'a, T> hash::Hash for Slide<'a, T>
-where
-    T: hash::Hash,
-{
-    #[inline]
-    fn hash<H: hash::Hasher>(&self, state: &mut H) {
-        self.consumed().hash(state);
-        self.remaining().hash(state);
-    }
-}
-
-impl<'a, T> Default for Slide<'a, T> {
-    #[inline]
-    fn default() -> Self {
-        Slide::new(Default::default())
-    }
-}
-
 impl<'a, T> From<&'a [T]> for Slide<'a, T> {
-    #[inline]
+    #[inline(always)]
     fn from(value: &'a [T]) -> Self {
-        Slide::new(value)
+        Self::new(value)
     }
 }
 
-impl<'a, T> From<&'a mut [T]> for Slide<'a, T> {
-    #[inline]
-    fn from(value: &'a mut [T]) -> Self {
-        Slide::new(value)
+impl<'a, T> AsRef<[T]> for Slide<'a, T> {
+    #[inline(always)]
+    fn as_ref(&self) -> &[T] {
+        self.remaining()
     }
 }
 
@@ -407,11 +420,25 @@ impl<'a, T, I> Index<I> for Slide<'a, T>
 where
     I: SliceIndex<[T]>,
 {
-    type Output = <I as SliceIndex<[T]>>::Output;
+    type Output = I::Output;
 
-    #[inline]
+    #[inline(always)]
     #[track_caller]
     fn index(&self, index: I) -> &Self::Output {
         self.remaining().index(index)
+    }
+}
+
+#[unsafe(no_mangle)]
+fn lol(x: &mut Slide<u8>) {
+    while x.remaining().len() >= 5 {
+        x.advance(5);
+    }
+}
+
+#[unsafe(no_mangle)]
+unsafe fn lol_2((start, end): &mut (*const u8, *const u8)) {
+    while unsafe { end.offset_from(*start) >= 5 } {
+        *start = unsafe { start.add(5) };
     }
 }
