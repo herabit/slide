@@ -1,12 +1,8 @@
 #![cfg_attr(not(test), no_std)]
+// #![cfg_attr(feature = "nightly", feature(core_intrinsics))]
 
-mod helpers;
 mod macros;
-mod pos;
-mod raw;
+mod util;
 
-/// Helper function that marks something as needing to be unsafe.
-#[inline(always)]
-pub(crate) const unsafe fn needs_unsafe<T>(x: T) -> T {
-    x
-}
+pub mod slice;
+pub mod str;

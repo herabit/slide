@@ -5,7 +5,7 @@ macro_rules! unreachable_unchecked {
     ($first:tt $($rest:tt)*) => {{
         #[cfg(debug_assertions)]
         {
-            $crate::needs_unsafe(
+            $crate::util::needs_unsafe(
                 ::core::unreachable!(
                     ::core::concat!(
                         "undefined behavior: ",
@@ -34,7 +34,7 @@ macro_rules! assert_unchecked {
     ($cond:expr, $first:tt $($rest:tt)*) => {{
         #[cfg(debug_assertions)]
         {
-            $crate::needs_unsafe(
+            $crate::util::needs_unsafe(
                 ::core::assert!(
                     $cond,
                     ::core::concat!(
@@ -58,3 +58,21 @@ macro_rules! assert_unchecked {
 }
 
 pub(crate) use assert_unchecked;
+
+// /// Macro that allows you to loop over the elements in a slice in const.
+// macro_rules! slice_iter {
+//     ($slice:expr, |$elem:ident $(, $label:lifetime)? $(,)?| $block:expr) => {{
+//         #[inline(always)]
+//         #[must_use]
+//         #[track_caller]
+//         const fn _not_zst<T>(x: &[T]) -> &[T] {
+//             ::core::assert!(size_of::<T>() != 0, "size must be nonzero");
+
+//             x
+//         }
+
+//         let slice = _not_zst($slice);
+//     }};
+// }
+
+// pub(crate) use slice_iter;

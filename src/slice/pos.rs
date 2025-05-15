@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use crate::helpers;
+use crate::util;
 use core::ptr::NonNull;
 
 /// A type for representing a position in some buffer.
@@ -93,7 +93,7 @@ impl<T> Pos<T> {
         // SAFETY: The caller ensures this is fine.
         match size_of::<T>() {
             0 => unsafe { self.offset },
-            1.. => unsafe { helpers::slice_len(start, self.ptr) },
+            1.. => unsafe { super::slice_len(start, self.ptr) },
         }
     }
 
@@ -141,7 +141,7 @@ impl<T> Pos<T> {
         // SAFETY: The caller ensures this is fine.
         match size_of::<T>() {
             0 => unsafe { self.offset.unchecked_sub(start.offset) },
-            1.. => unsafe { helpers::slice_len(start.ptr, self.ptr) },
+            1.. => unsafe { super::slice_len(start.ptr, self.ptr) },
         }
     }
 
