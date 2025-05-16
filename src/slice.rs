@@ -1,125 +1,90 @@
-use crate::{macros::assert_unchecked, util};
-use core::{ptr::NonNull, slice};
+use core::{fmt, hash, ptr::NonNull};
 
-pub(crate) mod pos;
-pub(crate) mod raw;
+use crate::{str::char_count_unchecked, type_eq::TypeEq};
 
-/// Returns the length of a represented by the pointer range `start..end`.
-///
-/// # Safety
-///
-/// - `start` and `end` must either:
-///    - Point to the same address.
-///    - Be derived from the same allocated object.
-///
-/// - The distance between the pointers, in bytes, must be
-///   an exact multiple of the size of `T`.
-///
-/// - The distance between the pointers must be nonnegative (`start <= end`).
-///
-/// - Likely others. See [`NonNull::offset_from_unsigned`] for any potentially
-///   missed details.
-///
-/// # Panics
-///
-/// - Panics if `T` is zero-sized.
-#[inline(always)]
-#[must_use]
-#[track_caller]
-pub(crate) const unsafe fn slice_len<T>(start: NonNull<T>, end: NonNull<T>) -> usize {
-    assert!(size_of::<T>() != 0, "size must be nonzero");
-    unsafe { assert_unchecked!(end.offset_from(start) >= 0, "`start > end`") };
-
-    unsafe { end.offset_from_unsigned(start) }
+mod private {
+    pub trait Sealed {}
 }
 
-/// Turns a slice into a slice of `N`-element arrays.
-///
-/// # Safety
-///
-/// - `slice` must divide exactly into `N`-element arrays (`slice.len() % N == 0`).
-///
-/// # Panics
-///
-/// - Panics at compile time if `N` is zero.
-#[inline(always)]
-#[must_use]
-#[track_caller]
-pub(crate) const unsafe fn as_chunks_unchecked<const N: usize, T>(slice: &[T]) -> &[[T; N]] {
-    const { assert!(N != 0, "chunk size must be nonzero") };
+/// Trait for slices that we're allowed to slide over.
+pub unsafe trait Slice: private::Sealed {
+    // The type contained by the underlying buffer of a slice.
+    #[doc(hidden)]
+    type Item: Sized;
 
-    // SAFETY: The caller ensures that the slice's length is exactly divisible by `N`.
-    unsafe {
-        assert_unchecked!(
-            slice.len() % N == 0,
-            "slice must be exactly divisible by the chunk size (`slice.len() % N == 0`)"
-        )
+    // Associated metadata for this slice type.
+    #[doc(hidden)]
+    type Meta: 'static + Send + Sync + Copy + Eq + Ord + hash::Hash + fmt::Debug;
+
+    // What kind of slice this is.
+    #[doc(hidden)]
+    const KIND: SliceKind<Self>;
+
+    // The name of the metadata field, if we want to show it in `fmt::Debug`.
+    #[doc(hidden)]
+    const META_NAME: Option<&'static str> = None;
+
+    // Whether `Item` is a ZST.
+    #[doc(hidden)]
+    const IS_ZST: bool = size_of::<Self::Item>() == 0;
+}
+
+#[doc(hidden)]
+#[non_exhaustive]
+pub enum SliceKind<S: Slice + ?Sized> {
+    Slice {
+        /// Convert `S` to a slice of items.
+        this: TypeEq<S, [S::Item]>,
+        /// Convert `S::Meta` to `()`.
+        unit: TypeEq<S::Meta, ()>,
+    },
+    Str {
+        /// Convert `S` to a `str`.
+        this: TypeEq<S, str>,
+        /// Convert `S::Item` to `u8`.
+        item: TypeEq<S::Item, u8>,
+        /// Convert `S::Meta` to `usize`.
+        ///
+        /// This is represents the character count of
+        /// the string.
+        char_count: TypeEq<S::Meta, CharCount>,
+    },
+}
+
+impl<S: Slice + ?Sized> Clone for SliceKind<S> {
+    #[inline(always)]
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<S: Slice + ?Sized> Copy for SliceKind<S> {}
+
+impl<T> private::Sealed for [T] {}
+unsafe impl<T> Slice for [T] {
+    type Item = T;
+    type Meta = ();
+
+    const KIND: SliceKind<Self> = SliceKind::Slice {
+        this: TypeEq::new(),
+        unit: TypeEq::new(),
+    };
+}
+
+impl private::Sealed for str {}
+unsafe impl Slice for str {
+    type Item = u8;
+    type Meta = CharCount;
+
+    const KIND: SliceKind<Self> = SliceKind::Str {
+        this: TypeEq::new(),
+        item: TypeEq::new(),
+        char_count: TypeEq::new(),
     };
 
-    // SAFETY: The caller ensures that the slice's length is exactly divisible by `N`.
-    let new_len = unsafe { util::exact_div_unchecked(slice.len(), N) };
-
-    // SAFETY: We're converting a slice of `new_len * N` elements into
-    //         a slice of `new_len` many `N`-many chunks.
-    unsafe { slice::from_raw_parts(slice.as_ptr().cast(), new_len) }
+    const META_NAME: Option<&'static str> = Some("char_count");
 }
 
-/// Splits the slice into the leading chunks of `N`-element arrays, and a slice of the
-/// remaining elements.
-///
-/// # Panics
-///
-/// - Panics at compile time if `N` is zero.
-#[inline(always)]
-#[must_use]
-#[track_caller]
-pub(crate) const fn as_chunks<const N: usize, T>(slice: &[T]) -> (&[[T; N]], &[T]) {
-    const { assert!(N != 0, "chunk size must be nonzero") };
-
-    let rounded_down_len = (slice.len() / N) * N;
-
-    // SAFETY: The rounded down length is always in bounds for `slice`.
-    let (left, right) = unsafe { slice.split_at_unchecked(rounded_down_len) };
-
-    // SAFETY: The left slice is guaranteed to have a length that is a multiple of `N`.
-    let left = unsafe { as_chunks_unchecked(left) };
-
-    (left, right)
-}
-
-/// [`core::slice::Chunks::next`] in const.
-#[inline(always)]
-#[must_use]
-#[track_caller]
-pub(crate) const fn next_chunk<'a, T>(slice: &mut &'a [T], chunk_size: usize) -> Option<&'a [T]> {
-    if slice.is_empty() {
-        None
-    } else {
-        let len = if chunk_size < slice.len() {
-            chunk_size
-        } else {
-            slice.len()
-        };
-
-        // SAFETY: `len <= slice.len()`.
-        let (chunk, rest) = unsafe { slice.split_at_unchecked(len) };
-        *slice = rest;
-
-        Some(chunk)
-    }
-}
-
-/// [`core::slice::Iter::next`] in const.
-#[inline(always)]
-#[must_use]
-#[track_caller]
-pub(crate) const fn next<'a, T>(slice: &mut &'a [T]) -> Option<&'a T> {
-    match slice.split_first() {
-        Some((first, rest)) => {
-            *slice = rest;
-
-            Some(first)
-        }
-        None => None,
-    }
-}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[repr(transparent)]
+pub struct CharCount(pub usize);

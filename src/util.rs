@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use core::{
-    mem::{self},
+    mem::{self, ManuallyDrop},
     ptr::{self, NonNull},
 };
 
@@ -213,10 +213,12 @@ pub(crate) const fn sum_bytes_usize(values: usize) -> usize {
     result
 }
 
+/// Marks a given code path as cold.
 #[inline(always)]
 #[cold]
 pub(crate) const fn cold() {}
 
+/// Marks a condition as unlikely.
 #[inline(always)]
 #[must_use]
 pub(crate) const fn unlikely(cond: bool) -> bool {
@@ -227,6 +229,7 @@ pub(crate) const fn unlikely(cond: bool) -> bool {
     cond
 }
 
+/// Marks a condition as likely.
 #[inline(always)]
 #[must_use]
 pub(crate) const fn likely(cond: bool) -> bool {
@@ -237,6 +240,7 @@ pub(crate) const fn likely(cond: bool) -> bool {
     cond
 }
 
+/// Increments a pointer by `n`, and returns the old pointer.
 #[inline(always)]
 #[must_use]
 pub(crate) const unsafe fn post_inc<T>(ptr: &mut NonNull<T>, n: usize) -> NonNull<T> {
@@ -247,10 +251,66 @@ pub(crate) const unsafe fn post_inc<T>(ptr: &mut NonNull<T>, n: usize) -> NonNul
     old
 }
 
+/// Decrements a pointer by `n`, returning the new pointer.
 #[inline(always)]
 #[must_use]
 pub(crate) const unsafe fn pre_dec<T>(ptr: &mut NonNull<T>, n: usize) -> NonNull<T> {
     *ptr = unsafe { ptr.sub(n) };
 
     *ptr
+}
+
+/// An even unsafer version of [`mem::transmute`].
+///
+/// # Safety
+///
+/// In addition to the invariants of [`mem::transmute`],
+/// the caller must ensure that `A` and `B` are the same size.
+///
+/// Failure to do so is immediate undefined behavior.
+#[inline(always)]
+#[must_use]
+#[track_caller]
+pub(crate) const unsafe fn transmute_unchecked<A, B>(a: A) -> B {
+    #[repr(C)]
+    union Transmute<A, B> {
+        a: ManuallyDrop<A>,
+        b: ManuallyDrop<B>,
+    }
+
+    unsafe {
+        // SAFETY: The caller ensures that `A` and `B` are the same size.
+        assert_unchecked!(size_of::<A>() == size_of::<B>(), "size mismatch");
+
+        // SAFETY: The caller ensures that the transmute is safe.
+        ManuallyDrop::into_inner(
+            Transmute::<A, B> {
+                a: ManuallyDrop::new(a),
+            }
+            .b,
+        )
+    }
+}
+
+/// A version of [`mem::transmute`] that plays better with generics.
+///
+/// # Safety
+///
+/// See [`mem::transmute`].
+///
+/// # Panics
+///
+/// Panics if `A` and `B` are not the same size.
+#[inline(always)]
+#[must_use]
+#[track_caller]
+pub(crate) const unsafe fn transmute<A, B>(a: A) -> B {
+    assert!(
+        size_of::<A>() == size_of::<B>(),
+        "transmutes must be between types of equal size"
+    );
+
+    // SAFETY: The caller ensures the transmute is sound, and we know that `A` and `B`
+    //         are of equal size.
+    unsafe { transmute_unchecked(a) }
 }

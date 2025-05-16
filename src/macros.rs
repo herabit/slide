@@ -59,6 +59,33 @@ macro_rules! assert_unchecked {
 
 pub(crate) use assert_unchecked;
 
+const A: &str = stringify!([usize; 2]);
+
+/// Macro that proves that two types have the same size and alignment,
+/// and that it is undefined behavior for them to differ.
+macro_rules! assert_layout_unchecked {
+    ($a:ty, $b:ty, $($arg:tt)+) => {
+        $crate::macros::assert_unchecked!(
+            const {
+                ::core::mem::size_of::<$a>() == ::core::mem::size_of::<$b>()
+                &&
+                ::core::mem::align_of::<$a>() == ::core::mem::align_of::<$b>()
+            },
+            $($arg)*
+        )
+    };
+
+    ($a:ty, $b:ty $(,)?) => {
+        $crate::macros::assert_layout_unchecked!(
+            $a,
+            $b,
+            "layout mismatch"
+        )
+    };
+}
+
+pub(crate) use assert_layout_unchecked;
+
 // /// Macro that allows you to loop over the elements in a slice in const.
 // macro_rules! slice_iter {
 //     ($slice:expr, |$elem:ident $(, $label:lifetime)? $(,)?| $block:expr) => {{

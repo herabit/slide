@@ -2,8 +2,10 @@
 name = "slide"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.87.0"
 
 [dependencies]
+# typewit = "1.11.0"
 
 
 [features]
