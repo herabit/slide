@@ -5,8 +5,8 @@
 //! 1. The [typewit](https://github.com/rodrimati1992/typewit/) crate.
 //! 2. The [type-equalities](https://github.com/WorldSEnder/type-equalities-rs) crate.
 //!
-//! For [`Covariant`], [`Contravariant`], and [`Invariant`], a lot of this
-//! comes from the [Phantom Variance Markers](https://github.com/rust-lang/rust/issues/135806) rust issue,
+//! For the [`invariance`] module, it comes from the
+//! [Phantom Variance Markers](https://github.com/rust-lang/rust/issues/135806) rust issue,
 //! which as of writing is not yet stable.
 //!
 //! We implement these newtypes instead of directly using [`PhantomData`],
@@ -28,243 +28,346 @@ pub(crate) mod type_fn;
 /// Module for variance markers.
 pub(crate) mod variance;
 
-/// Marker type that acts as a proof that two types are equivalent.
+/// Marker type that acts as a proof that `Src == Dest`.
 #[repr(transparent)]
-pub(crate) struct TypeEq<T: ?Sized, U: ?Sized>(Invariant<T>, Invariant<U>);
+pub(crate) struct TypeEq<Src: ?Sized, Dest: ?Sized>(Invariant<Src>, Invariant<Dest>);
 
-impl<T: ?Sized, U: ?Sized> TypeEq<T, U> {
-    /// Create a proof that `T == U`.
+impl<Src: ?Sized, Dest: ?Sized> TypeEq<Src, Dest> {
+    /// Create a proof that `Src == Dest`.
     ///
     /// # Safety
     ///
-    /// It is up to the caller to ensure that `T == U`. Failure to do so
+    /// It is up to the caller to ensure that `Src == Dest`. Failure to do so
     /// is considered undefined behavior as it permits transmutes between
-    /// `T` and `U`.
+    /// `Src` and `Dest`.
     #[inline(always)]
     #[must_use]
     pub(crate) const unsafe fn new_unchecked() -> Self {
-        // SAFETY: The caller ensures that `T == U`.
+        // SAFETY: The caller ensures that `Src == Dest`.
         Self(Invariant::new(), Invariant::new())
     }
 
-    /// Create a proof that `T == V` given that `T == U && U == V`.
+    /// Create a proof that `Src == NewDest` given that `Src == Dest && Dest == NewDest`.
     #[inline(always)]
     #[must_use]
-    pub(crate) const fn join<V: ?Sized>(self, _: TypeEq<U, V>) -> TypeEq<T, V> {
-        // SAFETY: `T == U && U == V` imples `T == V`.
-        unsafe { TypeEq::new_unchecked() }
-    }
-
-    /// Create a proof that `U == T`.
-    #[inline(always)]
-    #[must_use]
-    pub(crate) const fn flip(self) -> TypeEq<U, T> {
-        // SAFETY: `T == U` implies `U == T`.
-        unsafe { TypeEq::new_unchecked() }
-    }
-
-    /// Create a proof that `Call<F, T> == Call<F, U>`.
-    #[inline(always)]
-    #[must_use]
-    pub(crate) const fn lift<F: Func<T> + Func<U> + ?Sized>(
+    pub(crate) const fn join<NewDest: ?Sized>(
         self,
-    ) -> TypeEq<Call<F, T>, Call<F, U>> {
-        // SAFETY: `T == U` implies `Call<F, T> == Call<F, U>`.
+        _: TypeEq<Dest, NewDest>,
+    ) -> TypeEq<Src, NewDest> {
+        // SAFETY: `Src == Dest && Dest == NewDest` imples `Src == NewDest`.
         unsafe { TypeEq::new_unchecked() }
     }
 
-    /// Create a proof that `Uncall<F, T> == Uncall<F, U>`.
+    /// Create a proof that `Dest == Src`.
     #[inline(always)]
     #[must_use]
-    pub(crate) const fn unlift<F: RevFunc<T> + RevFunc<U> + ?Sized>(
+    pub(crate) const fn flip(self) -> TypeEq<Dest, Src> {
+        // SAFETY: `Src == Dest` implies `Dest == Src`.
+        unsafe { TypeEq::new_unchecked() }
+    }
+
+    /// Create a proof that `Call<F, Src> == Call<F, Dest>`.
+    #[inline(always)]
+    #[must_use]
+    pub(crate) const fn lift<F: Func<Src> + Func<Dest> + ?Sized>(
         self,
-    ) -> TypeEq<Uncall<F, T>, Uncall<F, U>> {
+    ) -> TypeEq<Call<F, Src>, Call<F, Dest>> {
+        // SAFETY: `Src == Dest` implies `Call<F, Src> == Call<F, Dest>`.
+        unsafe { TypeEq::new_unchecked() }
+    }
+
+    /// Create a proof that `Uncall<F, Src> == Uncall<F, Dest>`.
+    #[inline(always)]
+    #[must_use]
+    pub(crate) const fn unlift<F: RevFunc<Src> + RevFunc<Dest> + ?Sized>(
+        self,
+    ) -> TypeEq<Uncall<F, Src>, Uncall<F, Dest>> {
         self.lift::<Rev<F>>()
     }
 
-    /// Create a proof that `Call<F, T> == Call<F, U>` given
+    /// Create a proof that `Call<F, Src> == Call<F, Dest>` given
     /// some `F`.
     #[inline(always)]
     #[must_use]
-    pub(crate) const fn apply<F: Func<T> + Func<U>>(
+    pub(crate) const fn apply<F: Func<Src> + Func<Dest>>(
         self,
         func: F,
-    ) -> TypeEq<Call<F, T>, Call<F, U>> {
+    ) -> TypeEq<Call<F, Src>, Call<F, Dest>> {
         core::mem::forget(func);
 
         self.lift::<F>()
     }
 
-    /// Create a proof that `Uncall<F, T> == Uncall<F, U>` given
+    /// Create a proof that `Uncall<F, Src> == Uncall<F, Dest>` given
     /// some `F`.
     #[inline(always)]
     #[must_use]
-    pub(crate) const fn unapply<F: RevFunc<T> + RevFunc<U>>(
+    pub(crate) const fn unapply<F: RevFunc<Src> + RevFunc<Dest>>(
         self,
         func: F,
-    ) -> TypeEq<Uncall<F, T>, Uncall<F, U>> {
+    ) -> TypeEq<Uncall<F, Src>, Uncall<F, Dest>> {
         core::mem::forget(func);
 
         self.unlift::<F>()
     }
 
-    /// Create new proof that `A == Call<A::Func, U>` given that `Call<A::Func, T> == A`.
+    /// Create new proof that `Call<NewDest::Func, Src> == NewDest` given that `Call<NewDest::Func, Dest> == NewDest`.
     #[inline(always)]
     #[must_use]
-    pub(crate) const fn project<A: ?Sized>(self) -> TypeEq<A, Call<A::Func, U>>
+    pub(crate) const fn project<NewDest: ?Sized>(self) -> TypeEq<Call<NewDest::Func, Src>, NewDest>
     where
-        A: HasFunc<Arg = T>,
-        A::Func: Func<U>,
+        NewDest: HasFunc<Arg = Dest>,
+        NewDest::Func: Func<Src>,
     {
-        self.lift::<A::Func>()
+        self.lift::<NewDest::Func>()
     }
 
-    /// Create a new proof that `Uncall<T::Func, T> == Uncall<T::Func, U>`.
+    /// Create a new proof that `Uncall<Dest::Func, Src> == Uncall<Dest::Func, Dest>`.
     #[inline(always)]
     #[must_use]
-    pub(crate) const fn unproject(self) -> TypeEq<Uncall<T::Func, T>, Uncall<T::Func, U>>
+    pub(crate) const fn unproject(self) -> TypeEq<Uncall<Dest::Func, Src>, Uncall<Dest::Func, Dest>>
     where
-        T: HasFunc,
-        T::Func: RevFunc<U>,
+        Dest: HasFunc,
+        Dest::Func: RevFunc<Src>,
     {
-        self.unlift::<T::Func>()
+        self.unlift::<Dest::Func>()
     }
 
-    /// Create a proof that `&'a T == &'a U`.
+    /// Create a proof that `&'a Src == &'a Dest`.
     #[inline(always)]
     #[must_use]
-    pub(crate) const fn wrap_ref<'a>(self) -> TypeEq<&'a T, &'a U> {
+    pub(crate) const fn wrap_ref<'a>(self) -> TypeEq<&'a Src, &'a Dest> {
         self.project()
     }
 
-    /// Create a proof that `&'a mut T == &'a mut U`.
+    /// Create a proof that `&'a mut Src == &'a mut Dest`.
     #[inline(always)]
     #[must_use]
-    pub(crate) const fn wrap_mut<'a>(self) -> TypeEq<&'a mut T, &'a mut U> {
+    pub(crate) const fn wrap_mut<'a>(self) -> TypeEq<&'a mut Src, &'a mut Dest> {
         self.project()
     }
 
-    /// Create a proof that `*const T == *const U`.
+    /// Create a proof that `*const Src == *const Dest`.
     #[inline(always)]
     #[must_use]
-    pub(crate) const fn wrap_ptr(self) -> TypeEq<*const T, *const U> {
+    pub(crate) const fn wrap_ptr(self) -> TypeEq<*const Src, *const Dest> {
         self.project()
     }
 
-    /// Create a proof that `*mut T == *mut U`.
+    /// Create a proof that `*mut Src == *mut Dest`.
     #[inline(always)]
     #[must_use]
-    pub(crate) const fn wrap_ptr_mut(self) -> TypeEq<*mut T, *mut U> {
+    pub(crate) const fn wrap_ptr_mut(self) -> TypeEq<*mut Src, *mut Dest> {
         self.project()
     }
 
-    /// Create a proof that `NonNull<T> == NonNull<U>`.
+    /// Create a proof that `NonNull<Src> == NonNull<Dest>`.
     #[inline(always)]
     #[must_use]
-    pub(crate) const fn wrap_nonnull(self) -> TypeEq<NonNull<T>, NonNull<U>> {
+    pub(crate) const fn wrap_nonnull(self) -> TypeEq<NonNull<Src>, NonNull<Dest>> {
         self.project()
     }
 
-    /// Coerce a `&'a T` into a `&'a U`.
+    /// Coerce a `&'a Src` into a `&'a Dest`.
     #[inline(always)]
     #[must_use]
     #[track_caller]
-    pub(crate) const fn coerce_ref<'a>(self, value: &'a T) -> &'a U {
-        self.wrap_ref().coerce(value)
+    pub(crate) const fn coerce_ref<'a>(self, src: &'a Src) -> &'a Dest {
+        self.wrap_ref().coerce(src)
     }
 
-    /// Coerce a `&'a mut T` into a `&'a mut U`.
+    /// Coerce a `&'a mut Src` into a `&'a mut Dest`.
     #[inline(always)]
     #[must_use]
     #[track_caller]
-    pub(crate) const fn coerce_mut<'a>(self, value: &'a mut T) -> &'a mut U {
-        self.wrap_mut().coerce(value)
+    pub(crate) const fn coerce_mut<'a>(self, src: &'a mut Src) -> &'a mut Dest {
+        self.wrap_mut().coerce(src)
     }
 
-    /// Coerce a `*const T` into a `*const U`.
+    /// Coerce a `*const Src` into a `*const Dest`.
     #[inline(always)]
     #[must_use]
     #[track_caller]
-    pub(crate) const fn coerce_ptr(self, value: *const T) -> *const U {
-        self.wrap_ptr().coerce(value)
+    pub(crate) const fn coerce_ptr(self, src: *const Src) -> *const Dest {
+        self.wrap_ptr().coerce(src)
     }
 
-    /// Coerce a `*mut T` into a `*mut U`.
+    /// Coerce a `*mut Src` into a `*mut Dest`.
     #[inline(always)]
     #[must_use]
     #[track_caller]
-    pub(crate) const fn coerce_ptr_mut(self, value: *mut T) -> *mut U {
-        self.wrap_ptr_mut().coerce(value)
+    pub(crate) const fn coerce_ptr_mut(self, src: *mut Src) -> *mut Dest {
+        self.wrap_ptr_mut().coerce(src)
+    }
+
+    /// Coerce a `NonNull<Src>` into a `NonNull<Dest>`.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub(crate) const fn coerce_nonnull(self, src: NonNull<Src>) -> NonNull<Dest> {
+        self.wrap_nonnull().coerce(src)
+    }
+
+    /// Uncoerce a `&'a Dest` back into a `&'a Src`.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub(crate) const fn uncoerce_ref<'a>(self, dest: &'a Dest) -> &'a Src {
+        self.wrap_ref().uncoerce(dest)
+    }
+
+    /// Uncoerce a `&'a mut Dest` back into a `&'a mut Src`.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub(crate) const fn uncoerce_mut<'a>(self, dest: &'a mut Dest) -> &'a mut Src {
+        self.wrap_mut().uncoerce(dest)
+    }
+
+    /// Uncoerce a `*const Dest` back into a `*const Src`.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub(crate) const fn uncoerce_ptr(self, dest: *const Dest) -> *const Src {
+        self.wrap_ptr().uncoerce(dest)
+    }
+
+    /// Uncoerce a `*mut Dest` back into a `*mut Src`.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub(crate) const fn uncoerce_ptr_mut(self, dest: *mut Dest) -> *mut Src {
+        self.wrap_ptr_mut().uncoerce(dest)
+    }
+
+    /// Uncoerce a `NonNull<Dest>` back into a `NonNull<Src>`.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub(crate) const fn uncoerce_nonnull(self, dest: NonNull<Dest>) -> NonNull<Src> {
+        self.wrap_nonnull().uncoerce(dest)
     }
 }
 
-impl<T: ?Sized> TypeEq<T, T> {
-    /// Create a proof that `T == T`.
+impl<Src: ?Sized> TypeEq<Src, Src> {
+    /// Create a proof that `Src == Src`.
     #[inline(always)]
     #[must_use]
     pub(crate) const fn new() -> Self {
-        // SAFETY `T == T`.
+        // SAFETY `Src == Src`.
         unsafe { Self::new_unchecked() }
     }
 }
 
-impl<T, U> TypeEq<T, U> {
+impl<Src, Dest> TypeEq<Src, Dest> {
     /// Provide the compiler some hints.
     #[inline(always)]
     #[must_use]
     #[track_caller]
-    pub(crate) const fn compiler_hints<V>(self, value: V) -> V {
-        // SAFETY: `T == U`, therefore they have the same size, alignment, and layout niches.
+    pub(crate) const fn compiler_hints<T>(self, value: T) -> T {
+        // SAFETY: `Src == Dest`, therefore they have the same size, alignment, and layout niches.
         unsafe {
-            assert_layout_unchecked!(T, U, "`T` and `U` must have the same memory layout");
             assert_layout_unchecked!(
-                Option<T>,
-                Option<U>,
-                "`T` and `U` must have the same memory layout"
+                Src,
+                Dest,
+                "`Src` and `Dest` must have the same memory layout"
+            );
+            assert_layout_unchecked!(
+                Option<Src>,
+                Option<Dest>,
+                "`Src` and `Dest` must have the same memory layout"
             );
         }
 
         value
     }
 
-    /// Create a proof that `[T] == [U]`.
+    /// Create a proof that `[Src] == [Dest]`.
     #[inline(always)]
     #[must_use]
     #[track_caller]
-    pub(crate) const fn wrap_slice(self) -> TypeEq<[T], [U]> {
+    pub(crate) const fn wrap_slice(self) -> TypeEq<[Src], [Dest]> {
         self.compiler_hints(self.project())
     }
 
-    /// Create a proof that `Option<T> == Option<U>`.
+    /// Create a proof that `Option<Src> == Option<Dest>`.
     #[inline(always)]
     #[must_use]
     #[track_caller]
-    pub(crate) const fn wrap_option(self) -> TypeEq<Option<T>, Option<U>> {
+    pub(crate) const fn wrap_option(self) -> TypeEq<Option<Src>, Option<Dest>> {
         self.compiler_hints(self.project())
     }
 
-    /// Coerce a `T` into a `U`.
+    /// Coerce a `Src` into a `Dest`.
     #[inline(always)]
     #[must_use]
     #[track_caller]
-    pub(crate) const fn coerce(self, value: T) -> U {
-        // SAFETY: `T == U`.
-        self.compiler_hints(unsafe { crate::mem::transmute_unchecked(value) })
+    pub(crate) const fn coerce(self, src: Src) -> Dest {
+        // SAFETY: `Src == Dest`.
+        self.compiler_hints(unsafe { crate::mem::transmute_unchecked(src) })
     }
 
-    /// Swap a `T` and a `U`.
+    /// Coerce a `&'a [Src]` into a `&'a [Dest]`.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub(crate) const fn coerce_slice<'a>(self, src: &'a [Src]) -> &'a [Dest] {
+        self.wrap_slice().coerce_ref(src)
+    }
+
+    /// Coerce a `&'a mut [Src]` into a `&'a mut [Dest]`.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub(crate) const fn coerce_slice_mut<'a>(self, src: &'a mut [Src]) -> &'a mut [Dest] {
+        self.wrap_slice().coerce_mut(src)
+    }
+
+    /// Uncoerce a `Dest` back into a `Src`.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub(crate) const fn uncoerce(self, dest: Dest) -> Src {
+        self.flip().coerce(dest)
+    }
+
+    /// Uncoerce a `&'a [Dest]` back into a `&'a [Src]`.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub(crate) const fn uncoerce_slice<'a>(self, dest: &'a [Dest]) -> &'a [Src] {
+        self.wrap_slice().uncoerce_ref(dest)
+    }
+
+    /// Uncoerce a `&'a mut [Dest]` back into a `&'a mut [Src]`.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub(crate) const fn uncoerce_slice_mut<'a>(self, dest: &'a mut [Dest]) -> &'a mut [Src] {
+        self.wrap_slice().uncoerce_mut(dest)
+    }
+
+    /// Swap a `Src` and a `Dest`.
     #[inline(always)]
     #[track_caller]
-    pub(crate) const fn swap(self, x: &mut T, y: &mut U) {
+    pub(crate) const fn swap(self, x: &mut Src, y: &mut Dest) {
         core::mem::swap(self.coerce_mut(x), y)
+    }
+
+    /// Replace a `Dest` with some `Src`.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub(crate) const fn replace(self, src: Src, dest: &mut Dest) -> Dest {
+        core::mem::replace(dest, self.coerce(src))
     }
 }
 
-impl<T: ?Sized, U: ?Sized> Clone for TypeEq<T, U> {
+impl<Src: ?Sized, Dest: ?Sized> Clone for TypeEq<Src, Dest> {
     #[inline(always)]
     fn clone(&self) -> Self {
         *self
     }
 }
 
-impl<T: ?Sized, U: ?Sized> Copy for TypeEq<T, U> {}
+impl<Src: ?Sized, Dest: ?Sized> Copy for TypeEq<Src, Dest> {}

@@ -28,6 +28,8 @@ macro_rules! unreachable_unchecked {
     };
 }
 
+pub(crate) use unreachable_unchecked;
+
 /// Macro that tells the compiler that it is undefined behavior for some condition
 /// to be false.
 macro_rules! assert_unchecked {
