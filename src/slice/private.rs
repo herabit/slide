@@ -3,7 +3,11 @@
 //! Downstream crate ***must never*** rely upon the implementation of these traits.
 //!
 //! They're hidden away for a reason.
-use core::ops::{self, Bound, Range};
+use core::{
+    convert::Infallible,
+    ops::{self, Bound, Range},
+    str::Utf8Error,
+};
 
 use crate::{marker::TypeEq, util};
 
@@ -14,7 +18,19 @@ pub unsafe trait Slice {
     /// Do note that just because a slice has this item type set to this,
     /// that does not imply all `[Self::Item]`s are valid instances of this
     /// slice type.
+    ///
+    /// # Safety
+    ///
+    /// Implementors must guarantee that while not all `[Self::Item]`s are valid
+    /// instances of `Self`, all instances of `Self` can be be constructed from
+    /// some `[Self::Item]`.
+    ///
+    /// Implementors should supply some kind of error for when construction fails.
     type Item: Sized;
+
+    /// An error that is returned when constructing a `Self` from a `[Self::Item]`
+    /// fails.
+    type Error: Sized;
 
     /// A constant storing a type witness used for observers of this trait
     /// to implement polymorphism that works in const.
@@ -26,27 +42,23 @@ pub unsafe trait Slice {
     const IS_ZST: bool = size_of::<Self::Item>() == 0;
 }
 
-/// The actual implementation of [`super::SliceIndex`].
-pub unsafe trait SliceIndex<S: Slice + ?Sized> {
-    type Output: ?Sized;
-
-    /// A type witness to allow observers of this trait to implement
-    /// polymorphism that works in const.
-    const WITNESS: IndexWit<Self, S>;
-}
-
 /// Just a wrapper around [`SliceKind`] that we can expose publicly.
 pub struct SliceWit<S: Slice + ?Sized>(pub(crate) SliceKind<S>);
-
-/// Just a wrapper around [`IndexKind`] that we can expose publicly.
-pub struct IndexWit<I: SliceIndex<S> + ?Sized, S: Slice + ?Sized>(pub(crate) IndexKind<I, S>);
 
 /// An enum representing what kind of slice this is.
 pub(crate) enum SliceKind<S: Slice + ?Sized> {
     /// This slice is just a normal slice.
-    Slice(TypeEq<S, [S::Item]>),
+    Slice {
+        this: TypeEq<S, [S::Item]>,
+        error: TypeEq<S::Error, Infallible>,
+        items: TypeEq<[S::Item], [S::Item]>,
+    },
     /// This slice is a utf-8 string.
-    Str(TypeEq<S, str>),
+    Str {
+        this: TypeEq<S, str>,
+        error: TypeEq<S::Error, Utf8Error>,
+        items: TypeEq<[S::Item], [u8]>,
+    },
 }
 
 impl<S: Slice + ?Sized> Clone for SliceKind<S> {
@@ -58,44 +70,64 @@ impl<S: Slice + ?Sized> Clone for SliceKind<S> {
 
 impl<S: Slice + ?Sized> Copy for SliceKind<S> {}
 
+/// The actual implementation of [`super::SliceIndex`].
+pub unsafe trait SliceIndex<S: Slice + ?Sized> {
+    /// The output of the index operation.
+    type Output: ?Sized;
+
+    /// A type witness to allow observers of this trait to implement
+    /// polymorphism that works in const.
+    const WITNESS: IndexWit<Self, S>;
+}
+
+/// Just a wrapper around [`IndexKind`] that we can expose publicly.
+pub struct IndexWit<I: SliceIndex<S> + ?Sized, S: Slice + ?Sized>(pub(crate) IndexKind<I, S>);
+
 /// Index types supported for slices.
 pub(crate) enum IndexKind<I: SliceIndex<S> + ?Sized, S: Slice + ?Sized> {
     /// An actual index.
-    Index(TypeEq<I, usize>, TypeEq<I::Output, S::Item>),
+    Index {
+        index: TypeEq<I, usize>,
+        output: TypeEq<I::Output, S::Item>,
+    },
     /// Some bounds.
-    Bounds(
-        TypeEq<I, (Bound<usize>, Bound<usize>)>,
-        TypeEq<I::Output, S>,
-    ),
+    Bounds {
+        index: TypeEq<I, (Bound<usize>, Bound<usize>)>,
+        output: TypeEq<I::Output, S>,
+    },
     /// Range type provided by [`core::ops`].
-    Range(RangeKind<I>, TypeEq<I::Output, S>),
+    Range {
+        index: RangeKind<I>,
+        output: TypeEq<I::Output, S>,
+    },
 }
 
 impl<I: SliceIndex<S>, S: Slice + ?Sized> IndexKind<I, S> {
-    /// Returns the type equality for the output.
+    /// Returns the type equality for the output if it is an
+    /// index type that returns a subslice.
     #[inline(always)]
     #[must_use]
     #[track_caller]
-    pub const fn output(self) -> TypeEq<I::Output, S> {
+    pub const fn output(self) -> Option<TypeEq<I::Output, S>> {
         match self {
-            IndexKind::Bounds(_, output) => output,
-            IndexKind::Range(_, output) => output,
-            _ => panic!("unsupported index kind"),
+            IndexKind::Index { .. } => None,
+            IndexKind::Bounds { output, .. } => Some(output),
+            IndexKind::Range { output, .. } => Some(output),
         }
     }
 
     /// Convert an index `I` into its bounds.
     #[inline(always)]
     #[must_use]
-    pub const fn into_bounds(self, index: I) -> (Bound<usize>, Bound<usize>) {
+    pub const fn into_bounds(self, i: I) -> (Bound<usize>, Bound<usize>) {
         match self {
-            IndexKind::Index(conv, ..) => {
-                let index = conv.coerce(index);
+            IndexKind::Index { index, .. } => {
+                let i = index.coerce(i);
 
-                (Bound::Included(index), Bound::Included(index))
+                (Bound::Included(i), Bound::Included(i))
             }
-            IndexKind::Bounds(conv, ..) => conv.coerce(index),
-            IndexKind::Range(kind, ..) => kind.into_bounds(index),
+            IndexKind::Bounds { index, .. } => index.coerce(i),
+            IndexKind::Range { index, .. } => index.into_bounds(i),
         }
     }
 
@@ -191,142 +223,130 @@ impl<R: ?Sized> Copy for RangeKind<R> {}
 
 unsafe impl<T> Slice for [T] {
     type Item = T;
+    type Error = Infallible;
 
-    const WITNESS: SliceWit<Self> = SliceWit(SliceKind::Slice(TypeEq::new()));
+    const WITNESS: SliceWit<Self> = SliceWit(SliceKind::Slice {
+        this: TypeEq::new(),
+        error: TypeEq::new(),
+        items: TypeEq::new(),
+    });
 }
 
 unsafe impl Slice for str {
     type Item = u8;
+    type Error = Utf8Error;
 
-    const WITNESS: SliceWit<Self> = SliceWit(SliceKind::Str(TypeEq::new()));
+    const WITNESS: SliceWit<Self> = SliceWit(SliceKind::Str {
+        this: TypeEq::new(),
+        error: TypeEq::new(),
+        items: TypeEq::new(),
+    });
 }
 
-// Slice index implementations for `[T]`
+// unsafe impl<T> SliceIndex<[T]> for ops::Range<usize> {
+//     type Output = [T];
 
+//     const WITNESS: IndexWit<Self, [T]> = IndexWit(IndexKind::Range(
+//         RangeKind::Range(TypeEq::new()),
+//         TypeEq::new(),
+//     ));
+// }
+
+// unsafe impl<T> SliceIndex<[T]> for ops::RangeInclusive<usize> {
+//     type Output = [T];
+
+//     const WITNESS: IndexWit<Self, [T]> = IndexWit(IndexKind::Range(
+//         RangeKind::RangeInclusive(TypeEq::new()),
+//         TypeEq::new(),
+//     ));
+// }
+//
+
+macro_rules! range_index {
+    ($scope:ident, $var:ident, $kind:ident, $ty:ty, $($gen:tt)*) => {
+        unsafe impl $($gen)* SliceIndex<$ty> for ::core::$scope::Range<usize> {
+            type Output = $ty;
+
+            const WITNESS: IndexWit<Self, $ty> = IndexWit(IndexKind::$var {
+                index: $kind::Range(TypeEq::new()),
+                output: TypeEq::new(),
+            });
+        }
+
+        unsafe impl $($gen)* SliceIndex<$ty> for ::core::$scope::RangeInclusive<usize> {
+            type Output = $ty;
+
+            const WITNESS: IndexWit<Self, $ty> = IndexWit(IndexKind::$var {
+                index: $kind::RangeInclusive(TypeEq::new()),
+                output: TypeEq::new(),
+            });
+        }
+
+        unsafe impl $($gen)* SliceIndex<$ty> for ::core::$scope::RangeTo<usize> {
+            type Output = $ty;
+
+            const WITNESS: IndexWit<Self, $ty> = IndexWit(IndexKind::$var {
+                index: $kind::RangeTo(TypeEq::new()),
+                output: TypeEq::new(),
+            });
+        }
+
+        unsafe impl $($gen)* SliceIndex<$ty> for ::core::$scope::RangeToInclusive<usize> {
+            type Output = $ty;
+
+            const WITNESS: IndexWit<Self, $ty> = IndexWit(IndexKind::$var {
+                index: $kind::RangeToInclusive(TypeEq::new()),
+                output: TypeEq::new(),
+            });
+        }
+
+        unsafe impl $($gen)* SliceIndex<$ty> for ::core::$scope::RangeFrom<usize> {
+            type Output = $ty;
+
+            const WITNESS: IndexWit<Self, $ty> = IndexWit(IndexKind::$var {
+                index: $kind::RangeFrom(TypeEq::new()),
+                output: TypeEq::new(),
+            });
+        }
+
+        unsafe impl $($gen)* SliceIndex<$ty> for ::core::$scope::RangeFull {
+            type Output = $ty;
+
+            const WITNESS: IndexWit<Self, $ty> = IndexWit(IndexKind::$var {
+                index: $kind::RangeFull(TypeEq::new()),
+                output: TypeEq::new(),
+            });
+        }
+    };
+}
+
+macro_rules! blanket_index {
+    ($ty:ty, $($gen:tt)*) => {
+        unsafe impl $($gen)* SliceIndex<$ty> for (Bound<usize>, Bound<usize>) {
+            type Output = $ty;
+
+            const WITNESS: IndexWit<Self, $ty> = IndexWit(IndexKind::Bounds {
+                index: TypeEq::new(),
+                output: TypeEq::new(),
+            });
+        }
+
+        // Handle the core::ops ranges.
+        range_index!(ops, Range, RangeKind, $ty, $($gen)*);
+
+        // TODO: Handle the future new range api.
+    };
+}
+
+blanket_index!([T], <T>);
+blanket_index!(str,);
+
+// `usize` is a special case.
 unsafe impl<T> SliceIndex<[T]> for usize {
     type Output = T;
 
-    const WITNESS: IndexWit<Self, [T]> = IndexWit(IndexKind::Index(TypeEq::new(), TypeEq::new()));
-}
-
-unsafe impl<T> SliceIndex<[T]> for (Bound<usize>, Bound<usize>) {
-    type Output = [T];
-
-    const WITNESS: IndexWit<Self, [T]> = IndexWit(IndexKind::Bounds(TypeEq::new(), TypeEq::new()));
-}
-
-unsafe impl<T> SliceIndex<[T]> for ops::Range<usize> {
-    type Output = [T];
-
-    const WITNESS: IndexWit<Self, [T]> = IndexWit(IndexKind::Range(
-        RangeKind::Range(TypeEq::new()),
-        TypeEq::new(),
-    ));
-}
-
-unsafe impl<T> SliceIndex<[T]> for ops::RangeInclusive<usize> {
-    type Output = [T];
-
-    const WITNESS: IndexWit<Self, [T]> = IndexWit(IndexKind::Range(
-        RangeKind::RangeInclusive(TypeEq::new()),
-        TypeEq::new(),
-    ));
-}
-
-unsafe impl<T> SliceIndex<[T]> for ops::RangeTo<usize> {
-    type Output = [T];
-
-    const WITNESS: IndexWit<Self, [T]> = IndexWit(IndexKind::Range(
-        RangeKind::RangeTo(TypeEq::new()),
-        TypeEq::new(),
-    ));
-}
-
-unsafe impl<T> SliceIndex<[T]> for ops::RangeToInclusive<usize> {
-    type Output = [T];
-
-    const WITNESS: IndexWit<Self, [T]> = IndexWit(IndexKind::Range(
-        RangeKind::RangeToInclusive(TypeEq::new()),
-        TypeEq::new(),
-    ));
-}
-
-unsafe impl<T> SliceIndex<[T]> for ops::RangeFrom<usize> {
-    type Output = [T];
-
-    const WITNESS: IndexWit<Self, [T]> = IndexWit(IndexKind::Range(
-        RangeKind::RangeFrom(TypeEq::new()),
-        TypeEq::new(),
-    ));
-}
-
-unsafe impl<T> SliceIndex<[T]> for ops::RangeFull {
-    type Output = [T];
-
-    const WITNESS: IndexWit<Self, [T]> = IndexWit(IndexKind::Range(
-        RangeKind::RangeFull(TypeEq::new()),
-        TypeEq::new(),
-    ));
-}
-
-// Slice index implementations for `str`.
-
-unsafe impl SliceIndex<str> for (Bound<usize>, Bound<usize>) {
-    type Output = str;
-
-    const WITNESS: IndexWit<Self, str> = IndexWit(IndexKind::Bounds(TypeEq::new(), TypeEq::new()));
-}
-
-unsafe impl SliceIndex<str> for ops::Range<usize> {
-    type Output = str;
-
-    const WITNESS: IndexWit<Self, str> = IndexWit(IndexKind::Range(
-        RangeKind::Range(TypeEq::new()),
-        TypeEq::new(),
-    ));
-}
-
-unsafe impl SliceIndex<str> for ops::RangeInclusive<usize> {
-    type Output = str;
-
-    const WITNESS: IndexWit<Self, str> = IndexWit(IndexKind::Range(
-        RangeKind::RangeInclusive(TypeEq::new()),
-        TypeEq::new(),
-    ));
-}
-
-unsafe impl SliceIndex<str> for ops::RangeTo<usize> {
-    type Output = str;
-
-    const WITNESS: IndexWit<Self, str> = IndexWit(IndexKind::Range(
-        RangeKind::RangeTo(TypeEq::new()),
-        TypeEq::new(),
-    ));
-}
-
-unsafe impl SliceIndex<str> for ops::RangeToInclusive<usize> {
-    type Output = str;
-
-    const WITNESS: IndexWit<Self, str> = IndexWit(IndexKind::Range(
-        RangeKind::RangeToInclusive(TypeEq::new()),
-        TypeEq::new(),
-    ));
-}
-
-unsafe impl SliceIndex<str> for ops::RangeFrom<usize> {
-    type Output = str;
-
-    const WITNESS: IndexWit<Self, str> = IndexWit(IndexKind::Range(
-        RangeKind::RangeFrom(TypeEq::new()),
-        TypeEq::new(),
-    ));
-}
-
-unsafe impl SliceIndex<str> for ops::RangeFull {
-    type Output = str;
-
-    const WITNESS: IndexWit<Self, str> = IndexWit(IndexKind::Range(
-        RangeKind::RangeFull(TypeEq::new()),
-        TypeEq::new(),
-    ));
+    const WITNESS: IndexWit<Self, [T]> = IndexWit(IndexKind::Index {
+        index: TypeEq::new(),
+        output: TypeEq::new(),
+    });
 }

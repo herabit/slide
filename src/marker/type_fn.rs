@@ -2,6 +2,8 @@
 
 use core::{marker::PhantomData, ptr};
 
+use crate::mem;
+
 use super::variance::Covariant;
 
 /// Marker trait for type-level functions.
@@ -281,4 +283,98 @@ impl<A> RevFunc<Option<A>> for Opt {
 impl<A> HasFunc for Option<A> {
     type Arg = A;
     type Func = Opt;
+}
+
+/// A type-level function that creates a [`Result`] given a tuple.
+#[derive(Clone, Copy)]
+pub(crate) struct Res;
+
+impl<T, E> Func<(T, E)> for Res {
+    type Output = Result<T, E>;
+}
+
+impl<T, E> RevFunc<Result<T, E>> for Res {
+    type Arg = (T, E);
+}
+
+impl<T, E> HasFunc for Result<T, E> {
+    type Arg = (T, E);
+    type Func = Res;
+}
+
+/// A type-level function that wraps a given type in a [`mem::NoDrop`].
+#[derive(Clone, Copy)]
+pub(crate) struct NoDrop;
+
+impl<A: ?Sized> Func<A> for NoDrop {
+    type Output = mem::NoDrop<A>;
+}
+
+impl<A: ?Sized> RevFunc<mem::NoDrop<A>> for NoDrop {
+    type Arg = A;
+}
+
+impl<A: ?Sized> HasFunc for mem::NoDrop<A> {
+    type Arg = A;
+    type Func = NoDrop;
+}
+
+/// A type-level function that wraps a given type in a [`alloc::boxed::Box`].
+#[cfg(feature = "alloc")]
+pub(crate) struct Box;
+
+#[cfg(feature = "alloc")]
+impl<A: ?Sized> Func<A> for Box {
+    type Output = alloc::boxed::Box<A>;
+}
+
+#[cfg(feature = "alloc")]
+impl<A: ?Sized> RevFunc<alloc::boxed::Box<A>> for Box {
+    type Arg = A;
+}
+
+#[cfg(feature = "alloc")]
+impl<A: ?Sized> HasFunc for alloc::boxed::Box<A> {
+    type Arg = A;
+    type Func = Box;
+}
+
+/// A type-level function that wraps a given type in a [`alloc::rc::Rc`].
+#[cfg(feature = "alloc")]
+pub(crate) struct Rc;
+
+#[cfg(feature = "alloc")]
+impl<A: ?Sized> Func<A> for Rc {
+    type Output = alloc::rc::Rc<A>;
+}
+
+#[cfg(feature = "alloc")]
+impl<A: ?Sized> RevFunc<alloc::rc::Rc<A>> for Rc {
+    type Arg = A;
+}
+
+#[cfg(feature = "alloc")]
+impl<A: ?Sized> HasFunc for alloc::rc::Rc<A> {
+    type Arg = A;
+    type Func = Rc;
+}
+
+/// A type-level function that wraps a given type in a [`alloc::sync::Arc`].
+#[cfg(all(feature = "alloc", target_has_atomic = "ptr"))]
+pub(crate) struct Arc;
+
+#[cfg(all(feature = "alloc", target_has_atomic = "ptr"))]
+impl<A: ?Sized> Func<A> for Arc {
+    type Output = alloc::sync::Arc<A>;
+}
+
+#[cfg(all(feature = "alloc", target_has_atomic = "ptr"))]
+impl<A: ?Sized> RevFunc<alloc::sync::Arc<A>> for Arc {
+    type Arg = A;
+}
+
+#[cfg(all(feature = "alloc", target_has_atomic = "ptr"))]
+impl<A: ?Sized> HasFunc for alloc::sync::Arc<A> {
+    type Arg = A;
+    type Func = Arc;
 }

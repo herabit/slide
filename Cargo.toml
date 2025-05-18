@@ -9,10 +9,10 @@ rust-version = "1.87.0"
 
 
 [features]
-# default = ["nightly"]
+default = ["std"]
+
+std = ["alloc"]
+alloc = []
 
 # Enabling this feature tells the crate to optimize for file size.
 opt_size = []
-
-# Enabling this feature allows the crate to support features requiring nightly.
-# nightly = []

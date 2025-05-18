@@ -363,6 +363,42 @@ impl<Src, Dest> TypeEq<Src, Dest> {
     }
 }
 
+impl<A0, A1> TypeEq<A0, A1> {
+    /// Proves `(A0, B0) == (A1, B1)` given `A0 == A1` and `B0 == B1`.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub(crate) const fn zip<B0, B1>(self, other: TypeEq<B0, B1>) -> TypeEq<(A0, B0), (A1, B1)> {
+        let _ = other;
+        // SAFETY: If `A0 == A1` and `B0 == B1`, then `(A0, B0) == (A1, B1)`.
+        unsafe { TypeEq::new_unchecked() }
+    }
+}
+
+impl<A0, A1, B0, B1> TypeEq<(A0, B0), (A1, B1)> {
+    /// Proves `A0 == A1` and `B0 == B1` given `(A0, B0) == (A1, B1)`.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub(crate) const fn unzip(self) -> (TypeEq<A0, A1>, TypeEq<B0, B1>) {
+        // SAFETY: If `(A0, B0) == (A1, B1)`, then `A0 == A1` and `B0 == B1`.
+        unsafe { (TypeEq::new_unchecked(), TypeEq::new_unchecked()) }
+    }
+}
+
+impl<T0, T1> TypeEq<T0, T1> {
+    /// Proves that `Result<T0, E0> == Result<T1, E1>` given `T0 == T1` and `E0 == E1`.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub(crate) const fn wrap_result<E0, E1>(
+        self,
+        error: TypeEq<E0, E1>,
+    ) -> TypeEq<Result<T0, E0>, Result<T1, E1>> {
+        self.zip(error).project()
+    }
+}
+
 impl<Src: ?Sized, Dest: ?Sized> Clone for TypeEq<Src, Dest> {
     #[inline(always)]
     fn clone(&self) -> Self {
