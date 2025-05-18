@@ -1,5 +1,8 @@
 #![allow(dead_code)]
-use core::ops::{Bound, Range};
+use core::{
+    ops::{Bound, Range, RangeInclusive},
+    ptr,
+};
 
 /// Helper function that marks something as needing to be unsafe.
 #[inline(always)]
@@ -34,60 +37,24 @@ pub(crate) const fn likely(cond: bool) -> bool {
     cond
 }
 
-/// Convert some bounds into a [`Range<usize>`].
-///
-/// This does not do any bounds checking (or overflow checking in debug).
 #[inline(always)]
 #[must_use]
 #[track_caller]
-pub(crate) const fn into_range(
-    len: usize,
-    (start, end): (Bound<usize>, Bound<usize>),
-) -> Range<usize> {
-    let start = match start {
-        Bound::Included(start) => start,
-        Bound::Excluded(start) => start + 1,
-        Bound::Unbounded => 0,
-    };
-
-    let end = match end {
-        Bound::Included(end) => end + 1,
-        Bound::Excluded(end) => end,
-        Bound::Unbounded => len,
-    };
-
-    Range { start, end }
+pub const fn bound_ref<T>(bound: &Bound<T>) -> Bound<&T> {
+    match bound {
+        Bound::Included(bound) => Bound::Included(bound),
+        Bound::Excluded(bound) => Bound::Excluded(bound),
+        Bound::Unbounded => Bound::Unbounded,
+    }
 }
 
-/// Convert some bounds into a [`Range<usize>`].
-///
-/// Returns `None` if the indices overflow.
-///
-/// This does not do any bounds checking.
 #[inline(always)]
 #[must_use]
 #[track_caller]
-pub(crate) const fn into_range_checked(
-    len: usize,
-    (start, end): (Bound<usize>, Bound<usize>),
-) -> Option<Range<usize>> {
-    let start = match start {
-        Bound::Included(start) => start,
-        Bound::Excluded(start) => match start.checked_add(1) {
-            Some(start) => start,
-            None => return None,
-        },
-        Bound::Unbounded => 0,
-    };
-
-    let end = match end {
-        Bound::Included(end) => match end.checked_add(1) {
-            Some(end) => end,
-            None => return None,
-        },
-        Bound::Excluded(end) => end,
-        Bound::Unbounded => len,
-    };
-
-    Some(Range { start, end })
+pub const fn bound_copied<T: Copy>(bound: Bound<&T>) -> Bound<T> {
+    match bound {
+        Bound::Included(&bound) => Bound::Included(bound),
+        Bound::Excluded(&bound) => Bound::Excluded(bound),
+        Bound::Unbounded => Bound::Unbounded,
+    }
 }

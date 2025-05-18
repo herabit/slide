@@ -4,9 +4,10 @@
 macro_rules! unreachable_unchecked {
     ($first:tt $($rest:tt)*) => {{
         #[cfg(debug_assertions)]
+        #[allow(unreachable_code)]
         {
             $crate::util::needs_unsafe(
-                ::core::unreachable!(
+                ::core::panic!(
                     ::core::concat!(
                         "undefined behavior: ",
                         $first
@@ -18,6 +19,7 @@ macro_rules! unreachable_unchecked {
         }
 
         #[cfg(not(debug_assertions))]
+        #[allow(unreachable_code)]
         {
             ::core::hint::unreachable_unchecked()
         }
