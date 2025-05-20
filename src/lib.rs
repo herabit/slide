@@ -19,8 +19,8 @@ mod util;
 /// Marker types and traits that are used internally.
 mod marker;
 
-/// Module for handling slice ranges.
-pub mod range;
+/// Module for handling slice bounds.
+pub mod bounds;
 
-// /// What is a slice? This module seeks to answer that question.
-// pub mod slice;
+/// What is a slice? This module seeks to answer that question.
+pub mod slice;

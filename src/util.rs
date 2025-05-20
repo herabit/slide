@@ -1,8 +1,5 @@
 #![allow(dead_code)]
-use core::{
-    ops::{Bound, Range, RangeInclusive},
-    ptr,
-};
+use core::ops::Bound;
 
 /// Helper function that marks something as needing to be unsafe.
 #[inline(always)]
@@ -37,10 +34,11 @@ pub(crate) const fn likely(cond: bool) -> bool {
     cond
 }
 
+/// Get a `Bound<&T>` from a `&Bound<T>`.
 #[inline(always)]
 #[must_use]
 #[track_caller]
-pub const fn bound_ref<T>(bound: &Bound<T>) -> Bound<&T> {
+pub(crate) const fn bound_ref<T>(bound: &Bound<T>) -> Bound<&T> {
     match bound {
         Bound::Included(bound) => Bound::Included(bound),
         Bound::Excluded(bound) => Bound::Excluded(bound),
@@ -48,10 +46,11 @@ pub const fn bound_ref<T>(bound: &Bound<T>) -> Bound<&T> {
     }
 }
 
+/// Get a `Bound<T>` from a `Bound<&T>`.
 #[inline(always)]
 #[must_use]
 #[track_caller]
-pub const fn bound_copied<T: Copy>(bound: Bound<&T>) -> Bound<T> {
+pub(crate) const fn bound_copied<T: Copy>(bound: Bound<&T>) -> Bound<T> {
     match bound {
         Bound::Included(&bound) => Bound::Included(bound),
         Bound::Excluded(&bound) => Bound::Excluded(bound),

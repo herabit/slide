@@ -21,6 +21,7 @@ macro_rules! unreachable_unchecked {
         #[cfg(not(debug_assertions))]
         #[allow(unreachable_code)]
         {
+            let _ = ($first $($rest)*);
             ::core::hint::unreachable_unchecked()
         }
     }};
@@ -52,6 +53,7 @@ macro_rules! assert_unchecked {
 
         #[cfg(not(debug_assertions))]
         {
+            let _ = ($first $($rest)*);
             ::core::hint::assert_unchecked($cond)
         }
     }};
@@ -62,8 +64,6 @@ macro_rules! assert_unchecked {
 }
 
 pub(crate) use assert_unchecked;
-
-const A: &str = stringify!([usize; 2]);
 
 /// Macro that proves that two types have the same size and alignment,
 /// and that it is undefined behavior for them to differ.
@@ -89,21 +89,3 @@ macro_rules! assert_layout_unchecked {
 }
 
 pub(crate) use assert_layout_unchecked;
-
-// /// Macro that allows you to loop over the elements in a slice in const.
-// macro_rules! slice_iter {
-//     ($slice:expr, |$elem:ident $(, $label:lifetime)? $(,)?| $block:expr) => {{
-//         #[inline(always)]
-//         #[must_use]
-//         #[track_caller]
-//         const fn _not_zst<T>(x: &[T]) -> &[T] {
-//             ::core::assert!(size_of::<T>() != 0, "size must be nonzero");
-
-//             x
-//         }
-
-//         let slice = _not_zst($slice);
-//     }};
-// }
-
-// pub(crate) use slice_iter;
