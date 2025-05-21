@@ -408,6 +408,76 @@ macro_rules! define_slices {
                     elems: TypeEq::new(),
                     decode_error: TypeEq::new(),
                 });
+
+                $(#[doc = $len_doc])*
+                #[inline(always)]
+                #[track_caller]
+                fn len(&self) -> usize {
+                    super::len(self)
+                }
+
+                $(#[doc = $decode_elems_doc])*
+                #[inline(always)]
+                #[track_caller]
+                fn try_from_elems(elems: &[Self::Elem]) -> Result<&Self, Self::DecodeError> {
+                    super::try_from_elems(elems)
+                }
+
+                $(#[doc = $decode_elems_unchecked_doc])*
+                #[inline(always)]
+                #[track_caller]
+                unsafe fn from_elems_unchecked(elems: &[Self::Elem]) -> &Self {
+                    unsafe { super::from_elems_unchecked(elems) }
+                }
+
+                $(#[doc = $decode_elems_mut_doc])*
+                #[inline(always)]
+                #[track_caller]
+                fn try_from_elems_mut(elems: &mut [Self::Elem]) -> Result<&mut Self, Self::DecodeError> {
+                    super::try_from_elems_mut(elems)
+                }
+
+                $(#[doc = $decode_elems_mut_unchecked_doc])*
+                #[inline(always)]
+                #[track_caller]
+                unsafe fn from_elems_mut_unchecked(elems: &mut [Self::Elem]) -> &mut Self {
+                    unsafe { super::from_elems_mut_unchecked(elems) }
+                }
+
+                $(#[doc = $raw_slice_doc])*
+                #[inline(always)]
+                #[track_caller]
+                fn raw(data: *const Self::Elem, len: usize) -> *const Self {
+                    super::raw_slice(data, len)
+                }
+
+                $(#[doc = $raw_slice_mut_doc])*
+                #[inline(always)]
+                #[track_caller]
+                fn raw_mut(data: *mut Self::Elem, len: usize) -> *mut Self {
+                    super::raw_slice_mut(data, len)
+                }
+
+                $(#[doc = $raw_slice_nonnull_doc])*
+                #[inline(always)]
+                #[track_caller]
+                fn raw_nonnull(data: NonNull<Self::Elem>, len: usize) -> NonNull<Self> {
+                    super::raw_slice_nonnull(data, len)
+                }
+
+                $(#[doc = $from_raw_parts_doc])*
+                #[inline(always)]
+                #[track_caller]
+                unsafe fn from_raw_parts<'a>(data: *const Self::Elem, len: usize) -> &'a Self {
+                    unsafe { super::from_raw_parts(data, len) }
+                }
+
+                $(#[doc = $from_raw_parts_mut_doc])*
+                #[inline(always)]
+                #[track_caller]
+                unsafe fn from_raw_parts_mut<'a>(data: *mut Self::Elem, len: usize) -> &'a mut Self {
+                    unsafe { super::from_raw_parts_mut(data, len) }
+                }
             }
         )*
     };
@@ -425,17 +495,31 @@ define_slices! {
         ///
         /// They're the same types.
         decode_error: Infallible,
-        /// Returns the length of the given slice.
+        /// Returns the length of the provided slice.
         len: |slice| slice.len(),
-        /// This is a no-op since this is a normal slice.
+        /// All slices of elements are valid as it's the same type.
+        ///
+        /// # Returns
+        ///
+        /// This never returns an error.
         decode_elems: |slice| Ok(slice),
-        /// This is always safe to call since this is just
-        /// a normal slice.
+        /// All slices of elements are valid as it's the same type.
+        ///
+        /// # Safety
+        ///
+        /// This is always safe to call.
         decode_elems_unchecked: |slice| slice,
-        /// This is a no-op since this is a normal slice.
+        /// All slices of elements are valid as it's the same type.
+        ///
+        /// # Returns
+        ///
+        /// This never returns an error.
         decode_elems_mut: |slice| Ok(slice),
-        /// This is always safe to call since this is just
-        /// a normal slice.
+        /// ALl slices of elements are valid as it's the same type.
+        ///
+        /// # Safety
+        ///
+        /// This is always safe to call.
         decode_elems_mut_unchecked: |slice| slice,
         /// Create a raw slice from a pointer and a length.
         ///
@@ -459,15 +543,16 @@ define_slices! {
         ///
         /// # Safety
         ///
-        /// The caller must ensure that all of the conditions for [`core::slice::from_raw_parts`]
-        /// are upheld. Failure to do so is undefined behavior.
+        /// It is undefined behavior for any of the conditions of [`core::slice::from_raw_parts`]
+        /// to be violated.
         from_raw_parts: |(data, len)| unsafe { core::slice::from_raw_parts(data, len) },
         /// Create a new mutable slice from a pointer and a length.
         ///
         /// # Safety
         ///
-        /// The caller must ensure that all of the conditions for [`core::slice::from_raw_parts_mut`]
-        /// are upheld. Failure to do so is undefined behavior.
+        ///
+        /// It is undefined behavior for any of the conditions of [`core::slice::from_raw_parts_mut`]
+        /// to be violated.
         from_raw_parts_mut: |(data, len)| unsafe { core::slice::from_raw_parts_mut(data, len) },
     },
 
