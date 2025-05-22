@@ -11,357 +11,293 @@ use crate::{marker::TypeEq, slice::Slice};
 /// Trait to seal what we consider to be slices.
 pub trait Sealed {}
 
-macro_rules! get_impl {
-    ($ty:ty) => {
-        $ty
+macro_rules! get {
+    ($a:ty $(|)?) => {
+        $a
     };
-    ($ty:ty = $impl_ty:ty) => {
-        $impl_ty
+    ($a:ty | $b:ty $(|)?) => {
+        $b
     };
 }
 
+// macro_rules! const_method {
+//     (
+//         $(#[$attr:meta])*
+//         $(const $($const:lifetime)?)?
+//         $(unsafe $($unsafe:lifetime)?)?
+//         fn $name:ident $([ $($generics:tt)* ])? ($(
+//             $arg:ident: $arg_ty:ty $(| $arg_override:ty)? $(|)?
+//         ),* $(,)?) $(->
+//             $ret:ty $(| $ret_override:ty)? $(|)?
+//         )? $body:block
+//     ) => {
+//         $(#[$attr])*
+//         $(const $($const)?)?
+//         $(unsafe $($unsafe)?)?
+//         fn $name $(< $($generics)* >)? (
+//             $(
+//                 $arg: get!($arg_ty $(| $arg_override)?)
+//             ),*
+//         ) $(-> )? $block
+//     };
+// }
+
 macro_rules! define_slices {
     ($(
-
+        $(#[cfg($cfg:meta)])*
         $(#[doc = $doc:expr])*
-        $(#[cfg($cfg:meta)])?
-        $variant:ident $( ( $($gen:tt)* ) )? {
-            // The slice type.
-            $(#[doc = $slice_doc:expr])*
-            slice: $ty:ty $(= $impl_ty:ty)?,
+        unsafe impl $(( $($generics:tt)* ))? Slice for $slice:ty $(| $slice_override:ty)? $(|)?
+        {
+            // The kind of elements this slice contains.
+            $(#[$elem_attr:meta])*
+            type Elem = $elem:ty $(| $elem_override:ty)? $(|)?;
 
-            // The slice elems type.
-            $(#[doc = $elem_doc:expr])*
-            elems: [$elem_ty:ty] $(= [$impl_elem_ty:ty])?,
+            // An error that occurs when decoding.
+            $(#[$decode_err_attr:meta])*
+            type DecodeError = $decode_err:ty $(| $decode_err_override:ty)? $(|)?;
 
-            // The slice decode error type.
-            $(#[doc = $decode_error_doc:expr])*
-            decode_error: $decode_error_ty:ty $(= $impl_decode_error_ty:ty)?,
+            // The variant name for the type witness.
+            $(#[$variant_attr:meta])*
+            type Variant = $variant:ident;
 
-            // The slice length function.
-            $(#[doc = $len_doc:expr])*
-            len: |$len_params:pat_param| $len_body:expr,
+            // A function that returns the amount of elements in a slice.
+            $(#[$len_attr:meta])*
+            const fn len(
+                $($len_param:ident: $len_param_ty:ty $(| $len_param_override:ty)? ),+
+                $(,)?
+            ) -> $len_ret:ty $len_body:block
 
-            // The decode elems function.
-            $(#[doc = $decode_elems_doc:expr])*
-            decode_elems: |$decode_elems_params:pat_param| $decode_elems_body:expr,
+            // A function to create a raw slice from a pointer and a length.
+            $(#[$raw_slice_attr:meta])*
+            const fn raw_slice(
+                $($raw_slice_param:ident: $raw_slice_param_ty:ty),+
+                $(,)?
+            ) -> $raw_slice_ret:ty $raw_slice_body:block
 
-            // The decode elems unchecked function.
-            $(#[doc = $decode_elems_unchecked_doc:expr])*
-            decode_elems_unchecked:
-                |$decode_elems_unchecked_params:pat_param| $decode_elems_unchecked_body:expr,
+            // A function to create a mutable raw slice from a pointer and a length.
+            $(#[$raw_slice_mut_attr:meta])*
+            const fn raw_slice_mut(
+                $($raw_slice_mut_param:ident: $raw_slice_mut_param_ty:ty),+
+                $(,)?
+            ) -> $raw_slice_mut_ret:ty $raw_slice_mut_body:block
 
-            // The decode mutable elems function.
-            $(#[doc = $decode_elems_mut_doc:expr])*
-            decode_elems_mut:
-                |$decode_elems_mut_params:pat_param| $decode_elems_mut_body:expr,
+            // A function to create a non-null raw slice from a pointer and a length.
+            $(#[$raw_slice_nonnull_attr:meta])*
+            const fn raw_slice_nonnull(
+                $($raw_slice_nonnull_param:ident: $raw_slice_nonnull_param_ty:ty),+
+                $(,)?
+            ) -> $raw_slice_nonnull_ret:ty $raw_slice_nonnull_body:block
 
-            // The decode mutable elems unchecked function.
-            $(#[doc = $decode_elems_mut_unchecked_doc:expr])*
-            decode_elems_mut_unchecked:
-                |$decode_elems_mut_unchecked_params:pat_param| $decode_elems_mut_unchecked_body:expr,
+            // A function to create a slice from a pointer and a length.
+            $(#[$from_raw_parts_attr:meta])*
+            const unsafe fn from_raw_parts<$from_raw_parts_lt:lifetime>(
+                $($from_raw_parts_param:ident: $from_raw_parts_param_ty:ty),+
+                $(,)?
+            ) -> $from_raw_parts_ret:ty $from_raw_parts_body:block
 
-            // The raw slice function.
-            $(#[doc = $raw_slice_doc:expr])*
-            raw_slice: |$raw_slice_params:pat_param| $raw_slice_body:expr,
+            // A function to create a mutable slice from a pointer and a length.
+            $(#[$from_raw_parts_mut_attr:meta])*
+            const unsafe fn from_raw_parts_mut<$from_raw_parts_mut_lt:lifetime>(
+                $($from_raw_parts_mut_param:ident: $from_raw_parts_mut_param_ty:ty),+
+                $(,)?
+            ) -> $from_raw_parts_mut_ret:ty $from_raw_parts_mut_body:block
 
-            // The mutable raw slice function.
-            $(#[doc = $raw_slice_mut_doc:expr])*
-            raw_slice_mut: |$raw_slice_mut_params:pat_param| $raw_slice_mut_body:expr,
+            // A function to handle decoding errors in const.
+            $(#[$handle_decode_err_attr:meta])*
+            const fn handle_decode_error(
+                $($handle_decode_err_param:ident: $handle_decode_err_param_ty:ty),+
+                $(,)?
+            ) -> $handle_decode_err_ret:ty $handle_decode_err_body:block
 
-            // The nonnull raw slice function.
-            $(#[doc = $raw_slice_nonnull_doc:expr])*
-            raw_slice_nonnull: |$raw_slice_nonnull_params:pat_param| $raw_slice_nonnull_body:expr,
+            // A function to attempt to decode a slice from its elements.
+            $(#[$try_from_elems_attr:meta])*
+            const fn try_from_elems(
+                $($try_from_elems_param:ident: $try_from_elems_param_ty:ty),+
+                $(,)?
+            ) -> $try_from_elems_ret:ty $try_from_elems_body:block
 
-            // The from raw parts function.
-            $(#[doc = $from_raw_parts_doc:expr])*
-            from_raw_parts: |$from_raw_parts_params:pat_param| $from_raw_parts_body:expr,
+            // A function to attempt to decode a mutable slice from its elements.
+            $(#[$try_from_elems_mut_attr:meta])*
+            const fn try_from_elems_mut(
+                $($try_from_elems_mut_param:ident: $try_from_elems_mut_param_ty:ty),+
+                $(,)?
+            ) -> $try_from_elems_mut_ret:ty $try_from_elems_mut_body:block
 
-            // The from raw parts mut function.
-            $(#[doc = $from_raw_parts_mut_doc:expr])*
-            from_raw_parts_mut: |$from_raw_parts_mut_params:pat_param| $from_raw_parts_mut_body:expr,
+            // A function to decode a slice from its elements, panicking with a more
+            // detailed error than the const version.
+            $(#[$from_elems_attr:meta])*
+            fn from_elems(
+                $($from_elems_param:ident: $from_elems_param_ty:ty),+
+                $(,)?
+            ) -> $from_elems_ret:ty $from_elems_body:block
 
-            $(,)?
+            // A function to decode a mutable slice from its elements, panicking with a more
+            // detailed error than the const version.
+            $(#[$from_elems_mut_attr:meta])*
+            fn from_elems_mut(
+                $($from_elems_mut_param:ident: $from_elems_mut_param_ty:ty),+
+                $(,)?
+            ) -> $from_elems_mut_ret:ty $from_elems_mut_body:block
+
+            // A function to decode a slice from its elements without any checks.
+            $(#[$from_elems_unchecked_attr:meta])*
+            const unsafe fn from_elems_unchecked(
+                $($from_elems_unchecked_param:ident: $from_elems_unchecked_param_ty:ty),+
+                $(,)?
+            ) -> $from_elems_unchecked_ret:ty $from_elems_unchecked_body:block
+
+            // A function to decode a mutable slice from its elements without any checks.
+            $(#[$from_elems_mut_unchecked_attr:meta])*
+            const unsafe fn from_elems_mut_unchecked(
+                $($from_elems_mut_unchecked_param:ident: $from_elems_mut_unchecked_param_ty:ty),+
+                $(,)?
+            ) -> $from_elems_mut_unchecked_ret:ty $from_elems_mut_unchecked_body:block
         }
-    ),* $(,)?) => {
+    )*) => {
+        /// A wrapper around a [`SliceWit`] that can be exposed publicly.
+        #[repr(transparent)]
+        pub struct SliceKind<S: Slice + ?Sized>(pub(crate) SliceWit<S>);
+
+        impl<S: Slice + ?Sized> Clone for SliceKind<S> {
+            #[inline(always)]
+            fn clone(&self) -> Self {
+                *self
+            }
+        }
+
+        impl<S: Slice + ?Sized> Copy for SliceKind<S> {}
+
 
         /// A type witness for const polymorphism over types.
         #[non_exhaustive]
         pub(crate) enum SliceWit<S: Slice + ?Sized> {
             $(
-                $(#[doc = $doc])*
-                $(#[cfg($cfg)])?
+                $(#[cfg($cfg)])*
+                $(#[$variant_attr])*
+                #[non_exhaustive]
                 $variant {
-                    slice: TypeEq<S, $ty>,
-                    elems: TypeEq<[S::Elem], [$elem_ty]>,
-                    decode_error: TypeEq<S::DecodeError, $decode_error_ty>,
+                    slice: TypeEq<S, get!($slice | $($slice_override)?)>,
+                    elems: TypeEq<[S::Elem], get!([$elem] | $( [$elem_override] )?)>,
+                    decode_error: TypeEq<S::DecodeError, get!($decode_err | $($decode_err_override)?)>,
                 },
             )*
         }
 
         impl<S: Slice + ?Sized> SliceWit<S> {
-            /// Returns the length of a given slice.
             #[inline(always)]
             #[must_use]
             #[track_caller]
             pub(crate) const fn len(self, slice: *const S) -> usize {
-                match self {
-                    $(
-                        $(#[cfg($cfg)])?
-                        Self::$variant {
-                            slice: this,
-                            ..
-                        } => {
-                            let $len_params = this.coerce_ptr(slice);
+                 match self {
+                     $(
+                         $(#[cfg($cfg)])*
+                         Self::$variant {
+                             slice: this,
+                             ..
+                         } => {
+                             $(#[$len_attr])*
+                             const fn len $(< $($generics)* >)? (
+                                 $($len_param: $len_param_ty,)+
+                             ) -> $len_ret $len_body
 
-                            $len_body
-                        },
-                    )*
-                }
+                             len(this.coerce_ptr(slice))
+                         },
+                     )*
+                 }
             }
 
-            /// Decode a slice of elems into this slice type.
-            #[inline(always)]
-            #[must_use]
-            #[track_caller]
-            pub(crate) const fn decode_elems(self, elems: &[S::Elem]) -> Result<&S, S::DecodeError> {
-                match self {
-                    $(
-                        $(#[cfg($cfg)])?
-                        Self::$variant {
-                            slice,
-                            decode_error,
-                            elems: this,
-                        } => {
-                            let result = slice.wrap_ref().wrap_result(decode_error);
-                            let $decode_elems_params = this.coerce_ref(elems);
-
-                            result.uncoerce($decode_elems_body)
-                        },
-                    )*
-                }
-            }
-
-            /// Decode a slice of elems into this slice type without any checks.
-            ///
-            /// # Safety
-            ///
-            /// The caller must ensure that it is safe to construct an `&S` from the provided &[S::Elem]`.
-            #[inline(always)]
-            #[must_use]
-            #[track_caller]
-            pub(crate) const unsafe fn decode_elems_unchecked(self, elems: &[S::Elem]) -> &S {
-                match self {
-                    $(
-                        $(#[cfg($cfg)])?
-                        Self::$variant {
-                            slice,
-                            elems: this,
-                            ..
-                        } => {
-                            let $decode_elems_unchecked_params = this.coerce_ref(elems);
-
-                            slice.uncoerce_ref($decode_elems_unchecked_body)
-                        },
-                    )*
-                }
-            }
-
-            /// Decode a mutable slice of elems into this slice type.
-            #[inline(always)]
-            #[must_use]
-            #[track_caller]
-            pub(crate) const fn decode_elems_mut(self, elems: &mut [S::Elem]) -> Result<&mut S, S::DecodeError> {
-                match self {
-                    $(
-                        $(#[cfg($cfg)])?
-                        Self::$variant {
-                            slice,
-                            decode_error,
-                            elems: this,
-                        } => {
-                            let result = slice.wrap_mut().wrap_result(decode_error);
-                            let $decode_elems_mut_params = this.coerce_mut(elems);
-
-                            result.uncoerce($decode_elems_mut_body)
-                        },
-                    )*
-                }
-            }
-
-            /// Decode a mutable slice of elems into this slice type without any checks.
-            ///
-            /// # Safety
-            ///
-            /// The caller must ensure that it is safe to construct an `&mut S` from the provided
-            /// `&mut [S::Elem]`.
-            #[inline(always)]
-            #[must_use]
-            #[track_caller]
-            pub(crate) const unsafe fn decode_elems_mut_unchecked(self, elems: &mut [S::Elem]) -> &mut S {
-                match self {
-                    $(
-                        $(#[cfg($cfg)])?
-                        Self::$variant {
-                            slice,
-                            elems: this,
-                            ..
-                        } => {
-                            let $decode_elems_mut_unchecked_params = this.coerce_mut(elems);
-
-                            slice.uncoerce_mut($decode_elems_mut_unchecked_body)
-                        },
-                    )*
-                }
-            }
-
-            /// Create a raw slice from a pointer and a length.
-            ///
-            /// The length is the amount of `Slice::Elem`s the slice contains.
-            ///
-            /// # Safety
-            ///
-            /// This is always safe, but dereferencing the resulting value is not.
             #[inline(always)]
             #[must_use]
             #[track_caller]
             pub(crate) const fn raw_slice(self, data: *const S::Elem, len: usize) -> *const S {
                 match self {
                     $(
-                        $(#[cfg($cfg)])?
+                        $(#[cfg($cfg)])*
                         Self::$variant {
                             slice,
                             elems,
                             ..
                         } => {
-                            let $raw_slice_params = elems.coerce_ptr(
-                                ptr::slice_from_raw_parts(data, len),
-                            );
+                            $(#[$len_attr])*
+                            const fn raw_slice $(< $($generics)* >)? (
+                                $($raw_slice_param: $raw_slice_param_ty,)+
+                            ) -> $raw_slice_ret $raw_slice_body
 
-                            slice.uncoerce_ptr($raw_slice_body)
+                            slice.uncoerce_ptr(raw_slice(elems.unproject().coerce_ptr(data), len))
                         },
                     )*
                 }
             }
 
-            /// Create a mutable raw slice from a pointer and a length.
-            ///
-            /// The length is the amount of `Slice::Elem`s the slice contains.
-            ///
-            /// # Safety
-            ///
-            /// This is always safe, but dereferencing the resulting value is not.
+
             #[inline(always)]
             #[must_use]
             #[track_caller]
             pub(crate) const fn raw_slice_mut(self, data: *mut S::Elem, len: usize) -> *mut S {
                 match self {
                     $(
-                        $(#[cfg($cfg)])?
+                        $(#[cfg($cfg)])*
                         Self::$variant {
                             slice,
                             elems,
                             ..
                         } => {
-                            let $raw_slice_mut_params = elems.coerce_ptr_mut(
-                                ptr::slice_from_raw_parts_mut(data, len),
-                            );
+                            $(#[$len_attr])*
+                            const fn raw_slice_mut $(< $($generics)* >)? (
+                                $($raw_slice_mut_param: $raw_slice_mut_param_ty,)+
+                            ) -> $raw_slice_mut_ret $raw_slice_mut_body
 
-                            slice.uncoerce_ptr_mut($raw_slice_mut_body)
+                            slice.uncoerce_ptr_mut(raw_slice_mut(elems.unproject().coerce_ptr_mut(data), len))
                         },
                     )*
                 }
             }
 
-            /// Create a [`NonNull`] raw slice from a pointer and a length.
-            ///
-            /// The length is the amount of `Slice::Elem`s the slice contains.
-            ///
-            /// # Safety
-            ///
-            /// This is always safe, but dereferencing the resulting value is not.
+
             #[inline(always)]
             #[must_use]
             #[track_caller]
             pub(crate) const fn raw_slice_nonnull(self, data: NonNull<S::Elem>, len: usize) -> NonNull<S> {
                 match self {
                     $(
-                        $(#[cfg($cfg)])?
+                        $(#[cfg($cfg)])*
                         Self::$variant {
                             slice,
                             elems,
                             ..
                         } => {
-                            let $raw_slice_nonnull_params = elems.coerce_nonnull(
-                                NonNull::slice_from_raw_parts(data, len),
-                            );
+                            $(#[$len_attr])*
+                            const fn raw_slice_nonnull $(< $($generics)* >)? (
+                                $($raw_slice_nonnull_param: $raw_slice_nonnull_param_ty,)+
+                            ) -> $raw_slice_nonnull_ret $raw_slice_nonnull_body
 
-                            slice.uncoerce_nonnull($raw_slice_nonnull_body)
+                            slice.uncoerce_nonnull(raw_slice_nonnull(elems.unproject().coerce_nonnull(data), len))
                         },
                     )*
                 }
             }
 
-            /// Create a new slice from a pointer and a length.
-            ///
-            /// The length is the amount of `Slice::Elem`s the slice contains.
-            ///
-            /// # Safety
-            ///
-            /// The caller must ensure that the provided pointer and length can make
-            /// a valid `&'a [Self::Elem]` according to [`core::slice::from_raw_parts`].
-            ///
-            /// Additionally the caller must ensure that the `&'a [Self::Elem]` created is a
-            /// valid `&'a S`.
-            ///
-            /// Failure to ensure the above is undefined behavior.
             #[inline(always)]
             #[must_use]
             #[track_caller]
             pub(crate) const unsafe fn from_raw_parts<'a>(self, data: *const S::Elem, len: usize) -> &'a S {
                 match self {
                     $(
-                        $(#[cfg($cfg)])?
+                        $(#[cfg($cfg)])*
                         Self::$variant {
                             slice,
                             elems,
                             ..
                         } => {
-                            let $from_raw_parts_params = (
-                                elems.unproject().coerce_ptr(data),
-                                len,
-                            );
+                            $(#[$len_attr])*
+                            const unsafe fn from_raw_parts<$from_raw_parts_lt $(, $($generics)*)? >(
+                                $($from_raw_parts_param: $from_raw_parts_param_ty,)+
+                            ) -> $from_raw_parts_ret $from_raw_parts_body
 
-                            slice.uncoerce_ref($from_raw_parts_body)
-                        },
-                    )*
-                }
-            }
-
-            /// Create a new mutable slice from a pointer and a length.
-            ///
-            /// The length is the amount of `Slice::Elem`s the slice contains.
-            ///
-            /// # Safety
-            ///
-            #[inline(always)]
-            #[must_use]
-            #[track_caller]
-            pub(crate) const unsafe fn from_raw_parts_mut<'a>(self, data: *mut S::Elem, len: usize) -> &'a mut S {
-                match self {
-                    $(
-                        $(#[cfg($cfg)])?
-                        Self::$variant {
-                            slice,
-                            elems,
-                            ..
-                        } => {
-                            let $from_raw_parts_mut_params = (
-                                elems.unproject().coerce_ptr_mut(data),
-                                len,
-                            );
-
-                            slice.uncoerce_mut($from_raw_parts_mut_body)
+                            slice.uncoerce_ref(
+                                // SAFETY: The caller ensures this is safe.
+                                unsafe { from_raw_parts(elems.unproject().coerce_ptr(data), len) }
+                            )
                         },
                     )*
                 }
@@ -377,275 +313,368 @@ macro_rules! define_slices {
 
         impl<S: Slice + ?Sized> Copy for SliceWit<S> {}
 
-        /// A wrapper around a [`SliceWit`] that can be exposed publicly.
-        #[repr(transparent)]
-        pub struct SliceKind<S: Slice + ?Sized>(pub(crate) SliceWit<S>);
-
-        impl<S: Slice + ?Sized> Clone for SliceKind<S> {
-            #[inline(always)]
-            fn clone(&self) -> Self {
-                *self
-            }
-        }
-
-        impl<S: Slice + ?Sized> Copy for SliceKind<S> {}
-
         $(
-            $(#[cfg($cfg)])?
-            impl $($($gen)*)? Sealed for get_impl!($ty $(= $impl_ty)?) {}
+            $(#[cfg($cfg)])*
+            impl $(< $($generics)* >)? Sealed for $slice {}
 
-            $(#[cfg($cfg)])?
-            $(#[doc = $slice_doc])*
-            unsafe impl $($($gen)*)? Slice for get_impl!($ty $(= $impl_ty)?) {
-                $(#[doc = $elem_doc])*
-                type Elem = get_impl!($elem_ty $(= $impl_elem_ty)?);
+            $(#[cfg($cfg)])*
+            $(#[doc = $doc])*
+            unsafe impl $(< $($generics)* >)? Slice for $slice {
+                $(#[$elem_attr])*
+                type Elem = $elem;
 
-                $(#[doc = $decode_error_doc])*
-                type DecodeError = get_impl!($decode_error_ty $(= $impl_decode_error_ty)?);
+                $(#[$decode_err_attr])*
+                type DecodeError = $decode_err;
 
                 const KIND: SliceKind<Self> = SliceKind(SliceWit::$variant {
                     slice: TypeEq::new(),
                     elems: TypeEq::new(),
                     decode_error: TypeEq::new(),
                 });
-
-                $(#[doc = $len_doc])*
-                #[inline(always)]
-                #[track_caller]
-                fn len(&self) -> usize {
-                    super::len(self)
-                }
-
-                $(#[doc = $decode_elems_doc])*
-                #[inline(always)]
-                #[track_caller]
-                fn try_from_elems(elems: &[Self::Elem]) -> Result<&Self, Self::DecodeError> {
-                    super::try_from_elems(elems)
-                }
-
-                $(#[doc = $decode_elems_unchecked_doc])*
-                #[inline(always)]
-                #[track_caller]
-                unsafe fn from_elems_unchecked(elems: &[Self::Elem]) -> &Self {
-                    unsafe { super::from_elems_unchecked(elems) }
-                }
-
-                $(#[doc = $decode_elems_mut_doc])*
-                #[inline(always)]
-                #[track_caller]
-                fn try_from_elems_mut(elems: &mut [Self::Elem]) -> Result<&mut Self, Self::DecodeError> {
-                    super::try_from_elems_mut(elems)
-                }
-
-                $(#[doc = $decode_elems_mut_unchecked_doc])*
-                #[inline(always)]
-                #[track_caller]
-                unsafe fn from_elems_mut_unchecked(elems: &mut [Self::Elem]) -> &mut Self {
-                    unsafe { super::from_elems_mut_unchecked(elems) }
-                }
-
-                $(#[doc = $raw_slice_doc])*
-                #[inline(always)]
-                #[track_caller]
-                fn raw(data: *const Self::Elem, len: usize) -> *const Self {
-                    super::raw_slice(data, len)
-                }
-
-                $(#[doc = $raw_slice_mut_doc])*
-                #[inline(always)]
-                #[track_caller]
-                fn raw_mut(data: *mut Self::Elem, len: usize) -> *mut Self {
-                    super::raw_slice_mut(data, len)
-                }
-
-                $(#[doc = $raw_slice_nonnull_doc])*
-                #[inline(always)]
-                #[track_caller]
-                fn raw_nonnull(data: NonNull<Self::Elem>, len: usize) -> NonNull<Self> {
-                    super::raw_slice_nonnull(data, len)
-                }
-
-                $(#[doc = $from_raw_parts_doc])*
-                #[inline(always)]
-                #[track_caller]
-                unsafe fn from_raw_parts<'a>(data: *const Self::Elem, len: usize) -> &'a Self {
-                    unsafe { super::from_raw_parts(data, len) }
-                }
-
-                $(#[doc = $from_raw_parts_mut_doc])*
-                #[inline(always)]
-                #[track_caller]
-                unsafe fn from_raw_parts_mut<'a>(data: *mut Self::Elem, len: usize) -> &'a mut Self {
-                    unsafe { super::from_raw_parts_mut(data, len) }
-                }
             }
         )*
     };
 }
 
 define_slices! {
-    /// Just normal slices.
-    Slice (<T>) {
-        /// This is a normal slice, so the implementation is rather basic.
-        slice: [S::Elem] = [T],
-        /// Just the elements of this slice.
-        elems: [S::Elem] = [T],
-        /// Since this is a normal slice, there is zero possible errors
-        /// that can occur when "decoding" it from a slice of elems.
-        ///
-        /// They're the same types.
-        decode_error: Infallible,
-        /// Returns the length of the provided slice.
-        len: |slice| slice.len(),
-        /// All slices of elements are valid as it's the same type.
-        ///
-        /// # Returns
-        ///
-        /// This never returns an error.
-        decode_elems: |slice| Ok(slice),
-        /// All slices of elements are valid as it's the same type.
-        ///
-        /// # Safety
-        ///
-        /// This is always safe to call.
-        decode_elems_unchecked: |slice| slice,
-        /// All slices of elements are valid as it's the same type.
-        ///
-        /// # Returns
-        ///
-        /// This never returns an error.
-        decode_elems_mut: |slice| Ok(slice),
-        /// ALl slices of elements are valid as it's the same type.
-        ///
-        /// # Safety
-        ///
-        /// This is always safe to call.
-        decode_elems_mut_unchecked: |slice| slice,
+    unsafe impl (T) Slice for [T] | [S::Elem] {
+        /// A normal slice is just a slice over it's elements.
+        type Elem = T | S::Elem;
+        /// It is impossible for `[T] -> [T]` to fail.
+        type DecodeError = Infallible;
+        /// Just a normal slice.
+        type Variant = Slice;
+
+        /// Returns the amount of elements within this slice.
+        #[inline(always)]
+        #[must_use]
+        const fn len(slice: *const [T]) -> usize {
+            slice.len()
+        }
+
         /// Create a raw slice from a pointer and a length.
         ///
         /// # Safety
         ///
-        /// This is always safe to call, but dereferencing the resulting value is not.
-        raw_slice: |slice| slice,
+        /// This is always safe to call, dereferencing the resulting
+        /// value is not.
+        #[inline(always)]
+        #[must_use]
+        const fn raw_slice(data: *const T, len: usize) -> *const [T] {
+            core::ptr::slice_from_raw_parts(data, len)
+        }
+
         /// Create a mutable raw slice from a pointer and a length.
         ///
         /// # Safety
         ///
-        /// This is always safe to call, but dereferencing the resulting value is not.
-        raw_slice_mut: |slice| slice,
+        /// This is always safe to call, dereferencing the resulting
+        /// value is not.
+        #[inline(always)]
+        #[must_use]
+        const fn raw_slice_mut(data: *mut T, len: usize) -> *mut [T] {
+            core::ptr::slice_from_raw_parts_mut(data, len)
+        }
+
         /// Create a [`NonNull`] raw slice from a pointer and a length.
         ///
         /// # Safety
         ///
-        /// This is always safe to call, but dereferencing the resulting value is not.
-        raw_slice_nonnull: |slice| slice,
-        /// Create a new slice from a pointer and a length.
-        ///
-        /// # Safety
-        ///
-        /// It is undefined behavior for any of the conditions of [`core::slice::from_raw_parts`]
-        /// to be violated.
-        from_raw_parts: |(data, len)| unsafe { core::slice::from_raw_parts(data, len) },
-        /// Create a new mutable slice from a pointer and a length.
-        ///
-        /// # Safety
-        ///
-        ///
-        /// It is undefined behavior for any of the conditions of [`core::slice::from_raw_parts_mut`]
-        /// to be violated.
-        from_raw_parts_mut: |(data, len)| unsafe { core::slice::from_raw_parts_mut(data, len) },
-    },
+        /// This is always safe to call, dereferencing the resulting
+        /// value is not.
+        #[inline(always)]
+        #[must_use]
+        const fn raw_slice_nonnull(data: NonNull<T>, len: usize) -> NonNull<[T]> {
+            NonNull::slice_from_raw_parts(data, len)
+        }
 
-    /// A string slice.
-    Str {
-        /// We're implementing [`Slice`] on UTF-8 strings.
-        slice: str,
-        /// A [`str`] is a byte slice with the added invariant that
-        /// the bytes are a valid UTF-8 string.
-        ///
-        /// Not all `[u8]`s are valid `str`s.
-        elems: [u8],
-        /// If the provided byte slice is not UTF-8, this is the error that is
-        /// returns.
-        decode_error: Utf8Error,
-        /// Returns the length of the string in bytes.
-        len: |string| (string as *const [u8]).len(),
-        /// Create a string slice from a byte slice, given it's valid UTF-8.
-        ///
-        /// # Returns
-        ///
-        /// Returns an error if `bytes` is not UTF-8.
-        decode_elems: |bytes| core::str::from_utf8(bytes),
-        /// Create a string slice from a byte slice without any checks.
+        /// Create a slice from a pointer and a length.
         ///
         /// # Safety
         ///
-        /// The caller must ensure that `bytes` is valid UTF-8.
-        decode_elems_unchecked: |bytes| unsafe { core::str::from_utf8_unchecked(bytes) },
-        /// Create a mutable string slice from a mutable byte slice, given it's valid UTF-8.
-        ///
-        /// # Returns
-        ///
-        /// Returns an error if `bytes` is not UTF-8.
-        decode_elems_mut: |bytes| core::str::from_utf8_mut(bytes),
-        /// Create a mutable string slice from a mutable byte slice without any checks.
+        /// It is undefined behavior for any of the preconditions of
+        /// [`core::slice::from_raw_parts`] to be violated.
+        #[inline(always)]
+        #[must_use]
+        #[track_caller]
+        const unsafe fn from_raw_parts<'a>(data: *const T, len: usize) -> &'a [T] {
+            // SAFETY: The caller ensures this is safe.
+            unsafe { core::slice::from_raw_parts(data, len) }
+        }
+
+        /// Create a mutable slice from a pointer and a length.
         ///
         /// # Safety
         ///
-        /// The caller must ensure `bytes` is valid UTF-8.
-        decode_elems_mut_unchecked: |bytes| unsafe { core::str::from_utf8_unchecked_mut(bytes) },
+        /// It is undefined behavior for any of the preconditions of
+        /// [`core::slice::from_raw_parts_mut`] to be violated.
+        #[inline(always)]
+        #[must_use]
+        #[track_caller]
+        const unsafe fn from_raw_parts_mut<'a>(data: *mut T, len: usize) -> &'a mut [T] {
+            // SAFETY The caller ensures this is safe.
+            unsafe { core::slice::from_raw_parts_mut(data, len) }
+        }
+
+        /// This is impossible to call, as it is impossible for decoding
+        /// of a normal slice to fail.
+        #[inline(always)]
+        #[must_use]
+        #[allow(unused_variables, unreachable_code)]
+        const fn handle_decode_error(err: Infallible) -> ! {
+            match err {}
+        }
+
+        /// This just returns `Ok(elems)`.
+        ///
+        /// # Returns
+        ///
+        /// This never returns an error.
+        #[inline(always)]
+        #[must_use]
+        const fn try_from_elems(elems: &[T]) -> Result<&[T], Infallible> {
+            Ok(elems)
+        }
+
+        /// This just returns `Ok(elems)`.
+        ///
+        /// # Returns
+        ///
+        /// This never returns an error.
+        #[inline(always)]
+        #[must_use]
+        const fn try_from_elems_mut(elems: &mut [T]) -> Result<&mut [T], Infallible> {
+            Ok(elems)
+        }
+
+        /// This just returns `elems`.
+        ///
+        /// # Panics
+        ///
+        /// This never panics.
+        #[inline(always)]
+        #[must_use]
+        fn from_elems(elems: &[T]) -> &[T] {
+            elems
+        }
+
+        /// This just returns `elems`.
+        ///
+        /// # Panics
+        ///
+        /// This never panics.
+        #[inline(always)]
+        #[must_use]
+        fn from_elems_mut(elems: &mut [T]) -> &mut [T] {
+            elems
+        }
+
+        /// This just returns `elems`.
+        ///
+        /// # Safety
+        ///
+        /// This is always safe to call.
+        #[inline(always)]
+        #[must_use]
+        const unsafe fn from_elems_unchecked(elems: &[T]) -> &[T] {
+            elems
+        }
+
+        /// This just returns `elems`.
+        ///
+        /// # Safety
+        ///
+        /// This is always safe to call.
+        #[inline(always)]
+        #[must_use]
+        const unsafe fn from_elems_mut_unchecked(elems: &mut [T]) -> &mut [T] {
+            elems
+        }
+    }
+
+    unsafe impl Slice for str {
+        /// A [`str`] is a byte slice that is always UTF-8.
+        type Elem = u8;
+        /// Error returned when a `[u8]` is not valid UTF-8.
+        type DecodeError = Utf8Error;
+        /// String slice.
+        type Variant = Str;
+
+        /// Returns the amount of bytes within the slice.
+        #[inline(always)]
+        #[must_use]
+        const fn len(slice: *const str) -> usize {
+            (slice as *const [u8]).len()
+        }
 
         /// Create a raw string slice from a pointer and a length.
         ///
         /// # Safety
         ///
-        /// This is always safe to call, but dereferencing the resulting value is not.
-        raw_slice: |slice| slice as *const str,
+        /// This is always safe to call, dereferencing the resulting
+        /// value is not.
+        #[inline(always)]
+        #[must_use]
+        const fn raw_slice(data: *const u8, len: usize) -> *const str {
+            core::ptr::slice_from_raw_parts(data, len) as *const str
+        }
+
         /// Create a mutable raw string slice from a pointer and a length.
         ///
         /// # Safety
         ///
-        /// This is always safe to call, but dereferencing the resulting value is not.
-        raw_slice_mut: |slice| slice as *mut str,
-        /// Create a [`NonNull`] raw string slice from a pointer and a length.
+        /// This is always safe to call, dereferencing the resulting
+        /// value is not.
+        #[inline(always)]
+        #[must_use]
+        const fn raw_slice_mut(data: *mut u8, len: usize) -> *mut str {
+            core::ptr::slice_from_raw_parts_mut(data, len) as *mut str
+        }
+
+        /// Create a [`NonNull`] string slice from a pointer and a length.
         ///
         /// # Safety
         ///
-        /// This is always safe to call, but dereferencing the resulting value is not.
-        raw_slice_nonnull: |slice| NonNull::new(slice.as_ptr() as *mut str).unwrap(),
-        /// Create a new string slice from a pointer and a length.
+        /// This is always safe to call, dereferencing the resulting
+        /// value is not.
+        #[inline(always)]
+        #[must_use]
+        const fn raw_slice_nonnull(data: NonNull<u8>, len: usize) -> NonNull<str> {
+            // SAFETY: We know `data` is non-null.
+            unsafe {
+                NonNull::new_unchecked(
+                    core::ptr::slice_from_raw_parts_mut(data.as_ptr(), len) as *mut str
+                )
+            }
+        }
+
+        /// Create a string slice from a pointer and a length.
         ///
         /// # Safety
         ///
-        /// It is undefined behavior if:
+        /// It is undefined behavior for any of the preconditions of
+        /// [`core::slice::from_raw_parts`] to be violated.
         ///
-        /// - If any of the conditions for [`core::slice::from_raw_parts`] are not met
-        ///   for `&'a [u8]`.
-        ///
-        /// - If the resulting `&'a [u8]` is not valid UTF-8.
-        from_raw_parts: |(data, len)| {
-            // SAFETY: The caller ensures this is safe.
+        /// It is undefined behavior for the resulting byte slice
+        /// to be invalid UTF-8.
+        #[inline(always)]
+        #[must_use]
+        #[track_caller]
+        const unsafe fn from_raw_parts<'a>(data: *const u8, len: usize) -> &'a str {
+            // SAFETY: The caller ensures `data` and `len` make a valid `&'a [u8]`.
             let bytes = unsafe { core::slice::from_raw_parts(data, len) };
 
             // SAFETY: The caller ensures `bytes` is valid UTF-8.
             unsafe { core::str::from_utf8_unchecked(bytes) }
-        },
-        /// Create a new string slice from a pointer and a length.
+        }
+
+        /// Create a mutable string slice from a pointer and a length.
         ///
         /// # Safety
         ///
-        /// It is undefined behavior if:
+        /// It is undefined behavior for any of the preconditions of
+        /// [`core::slice::from_raw_parts_mut`] to be violated.
         ///
-        /// - Any of the conditions for [`core::slice::from_raw_parts_mut`] are not met
-        ///   for `&'a mut [u8]`.
-        ///
-        /// - If the resulting `&'a mut [u8]` is not valid UTF-8.
-        from_raw_parts_mut: |(data, len)| {
-            // SAFETY: The caller ensures this is safe.
+        /// It is undefined behavior for the resulting byte slice
+        /// to be invalid UTF-8.
+        #[inline(always)]
+        #[must_use]
+        #[track_caller]
+        const unsafe fn from_raw_parts_mut<'a>(data: *mut u8, len: usize) -> &'a mut str {
+            // SAFETY: The caller ensures `data` and `len` make a valid `&'a mut [u8]`.
             let bytes = unsafe { core::slice::from_raw_parts_mut(data, len) };
 
             // SAFETY: The caller ensures `bytes` is valid UTF-8.
             unsafe { core::str::from_utf8_unchecked_mut(bytes) }
-        },
-    },
+        }
+
+        /// Panics with a minimal error about the string being invalid UTF-8.
+        #[inline(always)]
+        #[must_use]
+        #[track_caller]
+        const fn handle_decode_error(err: Utf8Error) -> ! {
+            let _ = err;
+            panic!("invalid utf-8")
+        }
+
+        /// Create a string slice from `bytes` if `bytes`
+        /// is valid UTF-8.
+        ///
+        /// # Returns
+        ///
+        /// Returns an error if `bytes` is not valid UTF-8.
+        #[inline(always)]
+        #[must_use]
+        const fn try_from_elems(bytes: &[u8]) -> Result<&str, Utf8Error> {
+            core::str::from_utf8(bytes)
+        }
+
+        /// Create a mutable string slice from `bytes` if `bytes`
+        /// is valid UTF-8.
+        ///
+        /// # Returns
+        ///
+        /// Returns an error if `bytes` is not valid UTF-8.
+        #[inline(always)]
+        #[must_use]
+        const fn try_from_elems_mut(bytes: &mut [u8]) -> Result<&mut str, Utf8Error> {
+            core::str::from_utf8_mut(bytes)
+        }
+
+        /// Create a string slice from `bytes`.
+        ///
+        /// # Panics
+        ///
+        /// Panics if `bytes` is not valid UTF-8.
+        #[inline(always)]
+        #[must_use]
+        #[track_caller]
+        fn from_elems(bytes: &[u8]) -> &str {
+            match core::str::from_utf8(bytes) {
+                Ok(s) => s,
+                Err(err) => panic!("{err}"),
+            }
+        }
+
+        /// Create a mutable string slice from `bytes`.
+        ///
+        /// # Panics
+        ///
+        /// Panics if `bytes` is not valid UTF-8.
+        #[inline(always)]
+        #[must_use]
+        #[track_caller]
+        fn from_elems_mut(bytes: &mut [u8]) -> &mut str {
+            match core::str::from_utf8_mut(bytes) {
+                Ok(s) => s,
+                Err(err) => panic!("{err}"),
+            }
+        }
+
+        /// Create a string slice from `bytes` without any checks.
+        ///
+        /// # Safety
+        ///
+        /// The caller must ensure `bytes` is valid UTF-8.
+        #[inline(always)]
+        #[must_use]
+        #[track_caller]
+        const unsafe fn from_elems_unchecked(bytes: &[u8]) -> &str {
+            // SAFETY: The caller ensures `bytes` is valid UTF-8.
+            unsafe { core::str::from_utf8_unchecked(bytes) }
+        }
+
+        /// Create a mutable string slice from `bytes` without any checks.
+        ///
+        /// # Safety
+        ///
+        /// The caller must ensure `bytes` is valid UTF-8.
+        #[inline(always)]
+        #[must_use]
+        #[track_caller]
+        const unsafe fn from_elems_mut_unchecked(bytes: &mut [u8]) -> &mut str {
+            // SAFETY: The caller ensures `bytes` is valid UTF-8.
+            unsafe { core::str::from_utf8_unchecked_mut(bytes) }
+        }
+    }
 }

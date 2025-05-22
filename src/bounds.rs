@@ -18,6 +18,9 @@ pub unsafe trait SliceBounds: private::Sealed + RangeBounds<usize> {
     type Inner: SliceBounds + ?Sized;
 
     // A type witness that allows for polymorphism in a manner that works with `const`.
+    //
+    // Downstream crates must not rely on this existing. It is purely an implementation detail.
+    // It is not considered a breaking change for this to be removed at a later date.
     #[doc(hidden)]
     const KIND: private::BoundsKind<Self>;
 

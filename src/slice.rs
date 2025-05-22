@@ -27,335 +27,42 @@ pub unsafe trait Slice: private::Sealed {
     type DecodeError: Sized + fmt::Debug + fmt::Display;
 
     // A type witness to allow const polymorphism.
+    //
+    // Downstream crates must not rely on this existing. This is purely an implementation
+    // detail, and it's removal is not considered a breaking change.
     #[doc(hidden)]
     const KIND: private::SliceKind<Self>;
-
-    /// Returns the length of a this slice.
-    ///
-    /// This is equivalent to the amount of elements it contains.
-    ///
-    /// See the implementation of [`Slice`] for `Self` for more information.
-    #[inline(always)]
-    #[must_use]
-    #[track_caller]
-    fn len(&self) -> usize {
-        len(self)
-    }
-
-    /// Attempt to decode a slice from a slice of its elements.
-    ///
-    /// # Returns
-    ///
-    /// Returns an error if decoding failed.
-    ///
-    /// See the implementation of [`Slice`] for `Self` for more information.
-    #[inline(always)]
-    #[must_use]
-    #[track_caller]
-    fn try_from_elems(elems: &[Self::Elem]) -> Result<&Self, Self::DecodeError> {
-        try_from_elems(elems)
-    }
-
-    /// Decode a slice from a slice of its elements without any checks.
-    ///
-    /// # Safety
-    ///
-    /// The caller must ensure that it is safe to construct an `&Self` from the provided
-    /// elements.
-    ///
-    /// See the implementation of [`Slice`] for `Self` for more information.
-    #[inline(always)]
-    #[must_use]
-    #[track_caller]
-    unsafe fn from_elems_unchecked(elems: &[Self::Elem]) -> &Self {
-        // SAFETY: The caller ensures this is safe.
-        unsafe { from_elems_unchecked(elems) }
-    }
-
-    /// Attempt to decode a mutable slice from a mutable slice of its elements.
-    ///
-    /// # Returns
-    ///
-    /// Returns an error if decoding failed.
-    ///
-    /// See the implementation of [`Slice`] for `Self` for more information.
-    #[inline(always)]
-    #[must_use]
-    #[track_caller]
-    fn try_from_elems_mut(elems: &mut [Self::Elem]) -> Result<&mut Self, Self::DecodeError> {
-        try_from_elems_mut(elems)
-    }
-
-    /// Decode a mutable slice from a mutable slice of its elements without
-    /// any checks.
-    ///
-    /// # Safety
-    ///
-    /// The caller must ensure that it is safe to construct an `&mut Self` from the provided
-    /// elements.
-    ///
-    /// See the implementation of [`Slice`] for `Self` for more information.
-    #[inline(always)]
-    #[must_use]
-    #[track_caller]
-    unsafe fn from_elems_mut_unchecked(elems: &mut [Self::Elem]) -> &mut Self {
-        // SAFETY: The caller ensures this is safe.
-        unsafe { from_elems_mut_unchecked(elems) }
-    }
-
-    /// Create a raw slice from a pointer and a length.
-    ///
-    /// The length is the amount of elements the slice contains.
-    ///
-    /// # Safety
-    ///
-    /// This is always safe, but dereferencing the resulting value is not.
-    #[inline(always)]
-    #[must_use]
-    #[track_caller]
-    fn raw(data: *const Self::Elem, len: usize) -> *const Self {
-        raw_slice(data, len)
-    }
-
-    /// Create a mutable raw slice from a pointer and a length.
-    ///
-    /// The length is the amount of elements the slice contains.
-    ///
-    /// # Safety
-    ///
-    /// This is always safe, but dereferencing the resulting value is not.
-    #[inline(always)]
-    #[must_use]
-    #[track_caller]
-    fn raw_mut(data: *mut Self::Elem, len: usize) -> *mut Self {
-        raw_slice_mut(data, len)
-    }
-
-    /// Create a [`NonNull`] raw slice from a pointer and a length.
-    ///
-    /// The length is the amount of elements the slice contains.
-    ///
-    /// # Safety
-    ///
-    /// This is always safe, but dereferencing the resulting value is not.
-    #[inline(always)]
-    #[must_use]
-    #[track_caller]
-    fn raw_nonnull(data: NonNull<Self::Elem>, len: usize) -> NonNull<Self> {
-        raw_slice_nonnull(data, len)
-    }
-
-    /// Create a slice from a pointer and a length.
-    ///
-    /// The length is the amount of elements the slice contains.
-    ///
-    /// # Safety
-    ///
-    /// It is undefined behavior if:
-    ///
-    /// - Any of the conditions for [`core::slice::from_raw_parts`] are violated
-    ///   for `&'a [Self::Elem]`.
-    ///
-    /// - If the resulting `&'a [Self::Elem]` is not a valid `&'a Self`.
-    ///
-    /// - See the implementation of [`Slice`] for `Self` for more information.
-    #[inline(always)]
-    #[must_use]
-    #[track_caller]
-    unsafe fn from_raw_parts<'a>(data: *const Self::Elem, len: usize) -> &'a Self {
-        // SAFETY: The caller ensures this is safe.
-        unsafe { from_raw_parts(data, len) }
-    }
-
-    /// Create a mutable slice from a pointer and a length.
-    ///
-    ///  The length is the amount of elements the slice contains.
-    ///
-    /// # Safety
-    ///
-    /// It is undefined behavior if:
-    ///
-    /// - Any of the conditions for [`core::slice::from_raw_parts_mut`] are violated
-    ///   for `&'a mut [Self::Elem]`.
-    ///
-    /// - If the resulting `&'a mut [Self::Elem]` is not a valid `&'a mut Self`.
-    ///
-    /// - See the implementation of [`Slice`] for `Self` for more information.
-    #[inline(always)]
-    #[must_use]
-    #[track_caller]
-    unsafe fn from_raw_parts_mut<'a>(data: *mut Self::Elem, len: usize) -> &'a mut Self {
-        // SAFETY: The caller ensures this is safe.
-        unsafe { from_raw_parts_mut(data, len) }
-    }
 }
 
-/// Returns the length of a given slice pointer.
-///
-/// This is equivalent to the amount of elements it contains.
-///
-/// See the implementation of [`Slice`] for `S` for more information.
-#[inline(always)]
-#[must_use]
-#[track_caller]
-pub const fn len<S: Slice + ?Sized>(slice: *const S) -> usize {
-    S::KIND.0.len(slice)
-}
-
-/// Attempt to decode a slice from a slice of its elements.
-///
-/// # Returns
-///
-/// Returns an error if decoding failed.
-///
-/// See the implementation of [`Slice`] for `S` for more information.
-#[inline(always)]
-#[must_use]
-#[track_caller]
-pub const fn try_from_elems<S: Slice + ?Sized>(elems: &[S::Elem]) -> Result<&S, S::DecodeError> {
-    S::KIND.0.decode_elems(elems)
-}
-
-/// Decode a slice from a slice of its elements without any checks.
+/// Marker trait for slices that can safely be accessed immutably as a slice
+/// of their inner elements.
 ///
 /// # Safety
 ///
-/// The caller must ensure that it is safe to construct an `&S` from the provided
-/// elements.
+/// Types such as `[T]`, [`str`], are examples where it is safe to access
+/// their internal buffer immutably without fear of it invalidating the
+/// invariants of the type.
 ///
-/// See the implementation of [`Slice`] for `S` for more information.
-#[inline(always)]
-#[must_use]
-#[track_caller]
-pub const unsafe fn from_elems_unchecked<S: Slice + ?Sized>(elems: &[S::Elem]) -> &S {
-    // SAFETY: The caller ensures this is safe.
-    unsafe { S::KIND.0.decode_elems_unchecked(elems) }
-}
+/// Types that impose additional invariants upon their elements, and said elements
+/// contain interior mutability that permits invalidating those invariants,
+/// ***must not*** implement this trait.
+pub unsafe trait AsElems: Slice {}
 
-/// Attempt to decode a mutable slice from a mutable slice of its elements.
-///
-/// # Returns
-///
-/// Returns an error if decoding failed.
-///
-/// See the implementation of [`Slice`] for `S` for more information.
-#[inline(always)]
-#[must_use]
-#[track_caller]
-pub const fn try_from_elems_mut<S: Slice + ?Sized>(
-    elems: &mut [S::Elem],
-) -> Result<&mut S, S::DecodeError> {
-    S::KIND.0.decode_elems_mut(elems)
-}
-
-/// Decode a mutable slice from a mutable slice of its elements without
-/// any checks.
+/// Marker trait for slices that can safely be accessed mutably as a slice
+/// of their inner elements.
 ///
 /// # Safety
 ///
-/// The caller must ensure that it is safe to construct an `&mut S` from the provided
-/// elements.
+/// Types such as `[T]` is an example where it is safe to access their internal buffer
+/// mutably without fear of it invalidating the invariants of the type.
 ///
-/// See the implementation of [`Slice`] for `S` for more information.
-#[inline(always)]
-#[must_use]
-#[track_caller]
-pub const unsafe fn from_elems_mut_unchecked<S: Slice + ?Sized>(elems: &mut [S::Elem]) -> &mut S {
-    // SAFETY: The caller ensures this is safe.
-    unsafe { S::KIND.0.decode_elems_mut_unchecked(elems) }
-}
-
-/// Create a raw slice from a pointer and a length.
+/// Types that impose additional invariants upon their elements, and said elements
+/// can be modified in such a manner that invalidates those invariants, ***must not***
+/// implement this trait.
 ///
-/// The length is the amount of elements the slice contains.
-///
-/// # Safety
-///
-/// This is always safe, but dereferencing the resulting value is not.
-#[inline(always)]
-#[must_use]
-#[track_caller]
-pub const fn raw_slice<S: Slice + ?Sized>(data: *const S::Elem, len: usize) -> *const S {
-    S::KIND.0.raw_slice(data, len)
-}
-
-/// Create a mutable raw slice from a pointer and a length.
-///
-/// The length is the amount of elements the slice contains.
-///
-/// # Safety
-///
-/// This is always safe, but dereferencing the resulting value is not.
-#[inline(always)]
-#[must_use]
-#[track_caller]
-pub const fn raw_slice_mut<S: Slice + ?Sized>(data: *mut S::Elem, len: usize) -> *mut S {
-    S::KIND.0.raw_slice_mut(data, len)
-}
-
-/// Create a [`NonNull`] raw slice from a pointer and a length.
-///
-/// The length is the amount of elements the slice contains.
-///
-/// # Safety
-///
-/// This is always safe, but dereferencing the resulting value is not.
-#[inline(always)]
-#[must_use]
-#[track_caller]
-pub const fn raw_slice_nonnull<S: Slice + ?Sized>(
-    data: NonNull<S::Elem>,
-    len: usize,
-) -> NonNull<S> {
-    S::KIND.0.raw_slice_nonnull(data, len)
-}
-
-/// Create a slice from a pointer and a length.
-///
-/// The length is the amount of elements the slice contains.
-///
-/// # Safety
-///
-/// It is undefined behavior if:
-///
-/// - Any of the conditions for [`core::slice::from_raw_parts`] are violated
-///   for `&'a [S::Elem]`.
-///
-/// - If the resulting `&'a [S::Elem]` is not a valid `&'a S`.
-///
-/// - See the implementation of [`Slice`] for `S` for more information.
-#[inline(always)]
-#[must_use]
-#[track_caller]
-pub const unsafe fn from_raw_parts<'a, S: Slice + ?Sized>(
-    data: *const S::Elem,
-    len: usize,
-) -> &'a S {
-    // SAFETY: The caller ensures this is safe.
-    unsafe { S::KIND.0.from_raw_parts(data, len) }
-}
-
-/// Create a mutable slice from a pointer and a length.
-///
-///  The length is the amount of elements the slice contains.
-///
-/// # Safety
-///
-/// It is undefined behavior if:
-///
-/// - Any of the conditions for [`core::slice::from_raw_parts_mut`] are violated
-///   for `&'a mut [S::Elem]`.
-///
-/// - If the resulting `&'a mut [S::Elem]` is not a valid `&'a mut S`.
-///
-/// - See the implementation of [`Slice`] for `S` for more information.
-#[inline(always)]
-#[must_use]
-#[track_caller]
-pub const unsafe fn from_raw_parts_mut<'a, S: Slice + ?Sized>(
-    data: *mut S::Elem,
-    len: usize,
-) -> &'a mut S {
-    // SAFETY: The caller ensures this is safe.
-    unsafe { S::KIND.0.from_raw_parts_mut(data, len) }
-}
+/// An example of a type where this is the case is [`str`], which while just a byte slice
+/// in memory, it is one that ***must*** be valid UTF-8. If you were to safely get access
+/// to a `&mut [u8]` from a `&mut str`, it would be undefined behavior as one could modify
+/// the `&mut [u8]` in such a way that results in it no longer being UTF-8, resulting in undefined
+/// behavior.
+pub unsafe trait AsElemsMut: AsElems {}
