@@ -50,10 +50,10 @@ impl<Src: ?Sized, Dest: ?Sized> TypeEq<Src, Dest> {
     /// Create a proof that `Src == NewDest` given that `Src == Dest && Dest == NewDest`.
     #[inline(always)]
     #[must_use]
-    pub(crate) const fn join<NewDest: ?Sized>(
-        self,
-        _: TypeEq<Dest, NewDest>,
-    ) -> TypeEq<Src, NewDest> {
+    pub(crate) const fn join<NewDest>(self, _: TypeEq<Dest, NewDest>) -> TypeEq<Src, NewDest>
+    where
+        NewDest: ?Sized,
+    {
         // SAFETY: `Src == Dest && Dest == NewDest` imples `Src == NewDest`.
         unsafe { TypeEq::new_unchecked() }
     }
@@ -69,9 +69,10 @@ impl<Src: ?Sized, Dest: ?Sized> TypeEq<Src, Dest> {
     /// Create a proof that `Call<F, Src> == Call<F, Dest>`.
     #[inline(always)]
     #[must_use]
-    pub(crate) const fn lift<F: Func<Src> + Func<Dest> + ?Sized>(
-        self,
-    ) -> TypeEq<Call<F, Src>, Call<F, Dest>> {
+    pub(crate) const fn lift<F>(self) -> TypeEq<Call<F, Src>, Call<F, Dest>>
+    where
+        F: Func<Src> + Func<Dest> + ?Sized,
+    {
         // SAFETY: `Src == Dest` implies `Call<F, Src> == Call<F, Dest>`.
         unsafe { TypeEq::new_unchecked() }
     }
@@ -79,9 +80,10 @@ impl<Src: ?Sized, Dest: ?Sized> TypeEq<Src, Dest> {
     /// Create a proof that `Uncall<F, Src> == Uncall<F, Dest>`.
     #[inline(always)]
     #[must_use]
-    pub(crate) const fn unlift<F: RevFunc<Src> + RevFunc<Dest> + ?Sized>(
-        self,
-    ) -> TypeEq<Uncall<F, Src>, Uncall<F, Dest>> {
+    pub(crate) const fn unlift<F>(self) -> TypeEq<Uncall<F, Src>, Uncall<F, Dest>>
+    where
+        F: RevFunc<Src> + RevFunc<Dest> + ?Sized,
+    {
         self.lift::<Rev<F>>()
     }
 
@@ -89,10 +91,10 @@ impl<Src: ?Sized, Dest: ?Sized> TypeEq<Src, Dest> {
     /// some `F`.
     #[inline(always)]
     #[must_use]
-    pub(crate) const fn apply<F: Func<Src> + Func<Dest>>(
-        self,
-        func: F,
-    ) -> TypeEq<Call<F, Src>, Call<F, Dest>> {
+    pub(crate) const fn apply<F>(self, func: F) -> TypeEq<Call<F, Src>, Call<F, Dest>>
+    where
+        F: Func<Src> + Func<Dest>,
+    {
         core::mem::forget(func);
 
         self.lift::<F>()
@@ -102,10 +104,10 @@ impl<Src: ?Sized, Dest: ?Sized> TypeEq<Src, Dest> {
     /// some `F`.
     #[inline(always)]
     #[must_use]
-    pub(crate) const fn unapply<F: RevFunc<Src> + RevFunc<Dest>>(
-        self,
-        func: F,
-    ) -> TypeEq<Uncall<F, Src>, Uncall<F, Dest>> {
+    pub(crate) const fn unapply<F>(self, func: F) -> TypeEq<Uncall<F, Src>, Uncall<F, Dest>>
+    where
+        F: RevFunc<Src> + RevFunc<Dest>,
+    {
         core::mem::forget(func);
 
         self.unlift::<F>()
@@ -114,10 +116,11 @@ impl<Src: ?Sized, Dest: ?Sized> TypeEq<Src, Dest> {
     /// Create new proof that `Call<NewDest::Func, Src> == NewDest` given that `Call<NewDest::Func, Dest> == NewDest`.
     #[inline(always)]
     #[must_use]
-    pub(crate) const fn project<NewDest: ?Sized>(self) -> TypeEq<Call<NewDest::Func, Src>, NewDest>
+    pub(crate) const fn project<NewDest>(self) -> TypeEq<Call<NewDest::Func, Src>, NewDest>
     where
         NewDest: HasFunc<Arg = Dest>,
         NewDest::Func: Func<Src>,
+        NewDest: ?Sized,
     {
         self.lift::<NewDest::Func>()
     }
@@ -399,11 +402,20 @@ impl<T0, T1> TypeEq<T0, T1> {
     }
 }
 
-impl<Src: ?Sized, Dest: ?Sized> Clone for TypeEq<Src, Dest> {
+impl<Src, Dest> Clone for TypeEq<Src, Dest>
+where
+    Src: ?Sized,
+    Dest: ?Sized,
+{
     #[inline(always)]
     fn clone(&self) -> Self {
         *self
     }
 }
 
-impl<Src: ?Sized, Dest: ?Sized> Copy for TypeEq<Src, Dest> {}
+impl<Src, Dest> Copy for TypeEq<Src, Dest>
+where
+    Src: ?Sized,
+    Dest: ?Sized,
+{
+}

@@ -63,7 +63,10 @@ pub(crate) const unsafe fn transmute<A, B>(a: A) -> B {
 #[repr(transparent)]
 pub(crate) struct NoDrop<T: ?Sized>(ManuallyDrop<T>);
 
-impl<T: ?Sized> NoDrop<T> {
+impl<T> NoDrop<T>
+where
+    T: ?Sized,
+{
     /// Get a pointer to the underlying `T`.
     #[inline(always)]
     #[must_use]
@@ -148,7 +151,6 @@ impl<T> NoDrop<T> {
 impl<T, E> NoDrop<Result<T, E>> {
     /// Maps the underlying `Result<T, E>` into a `Result<NoDrop<T>, NoDrop<E>>`.
     #[inline(always)]
-    #[must_use]
     pub(crate) const fn transpose(self) -> Result<NoDrop<T>, NoDrop<E>> {
         // NOTE: Why not use a simple `match`? As of writing, Rust has some limitations
         //       on how far the drop checker can work in const, a simple match on a result

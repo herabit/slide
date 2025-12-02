@@ -1,12 +1,7 @@
 #![allow(dead_code)]
 
-use core::{
-    convert::Infallible,
-    ptr::{self, NonNull},
-    str::Utf8Error,
-};
-
-use crate::{marker::TypeEq, slice::Slice};
+use crate::{marker::TypeEq, mem::NoDrop, slice::Slice};
+use core::{convert::Infallible, ptr::NonNull, str::Utf8Error};
 
 /// Trait to seal what we consider to be slices.
 pub trait Sealed {}
@@ -20,33 +15,12 @@ macro_rules! get {
     };
 }
 
-// macro_rules! const_method {
-//     (
-//         $(#[$attr:meta])*
-//         $(const $($const:lifetime)?)?
-//         $(unsafe $($unsafe:lifetime)?)?
-//         fn $name:ident $([ $($generics:tt)* ])? ($(
-//             $arg:ident: $arg_ty:ty $(| $arg_override:ty)? $(|)?
-//         ),* $(,)?) $(->
-//             $ret:ty $(| $ret_override:ty)? $(|)?
-//         )? $body:block
-//     ) => {
-//         $(#[$attr])*
-//         $(const $($const)?)?
-//         $(unsafe $($unsafe)?)?
-//         fn $name $(< $($generics)* >)? (
-//             $(
-//                 $arg: get!($arg_ty $(| $arg_override)?)
-//             ),*
-//         ) $(-> )? $block
-//     };
-// }
-
 macro_rules! define_slices {
     ($(
-        $(#[cfg($cfg:meta)])*
+        $(#[cfg($($cfg:tt)*)])*
         $(#[doc = $doc:expr])*
-        unsafe impl $(( $($generics:tt)* ))? Slice for $slice:ty $(| $slice_override:ty)? $(|)?
+        unsafe impl $(( $($generics:tt)* ))? Slice
+        for $slice:ty $(| $slice_override:ty)? $(|)?
         {
             // The kind of elements this slice contains.
             $(#[$elem_attr:meta])*
@@ -55,6 +29,14 @@ macro_rules! define_slices {
             // An error that occurs when decoding.
             $(#[$decode_err_attr:meta])*
             type DecodeError = $decode_err:ty $(| $decode_err_override:ty)? $(|)?;
+
+            // An error that occurs when attempting to get the inner elements of a slice.
+            $(#[$elem_err_attr:meta])*
+            type ElemError = $elem_err:ty $(| $elem_err_override:ty)? $(|)?;
+
+            // An error that occurs when attempting to split or index a slice.
+            $(#[$split_err_attr:meta])*
+            type SplitError = $split_err:ty $(| $split_err_override:ty)? $(|)?;
 
             // The variant name for the type witness.
             $(#[$variant_attr:meta])*
@@ -109,6 +91,20 @@ macro_rules! define_slices {
                 $(,)?
             ) -> $handle_decode_err_ret:ty $handle_decode_err_body:block
 
+            // A function to handle element errors in const.
+            $(#[$handle_elem_err_attr:meta])*
+            const fn handle_elem_error(
+                $($handle_elem_err_param:ident: $handle_elem_err_param_ty:ty),+
+                $(,)?
+            ) -> $handle_elem_err_ret:ty $handle_elem_err_body:block
+
+            // A function to handle split errors in const.
+            $(#[$handle_split_err_attr:meta])*
+            const fn handle_split_error(
+                $($handle_split_err_param:ident: $handle_split_err_param_ty:ty),+
+                $(,)?
+            ) -> $handle_split_err_ret:ty $handle_split_err_body:block
+
             // A function to attempt to decode a slice from its elements.
             $(#[$try_from_elems_attr:meta])*
             const fn try_from_elems(
@@ -123,16 +119,14 @@ macro_rules! define_slices {
                 $(,)?
             ) -> $try_from_elems_mut_ret:ty $try_from_elems_mut_body:block
 
-            // A function to decode a slice from its elements, panicking with a more
-            // detailed error than the const version.
+            // A function to decode a slice from its elements.
             $(#[$from_elems_attr:meta])*
             fn from_elems(
                 $($from_elems_param:ident: $from_elems_param_ty:ty),+
                 $(,)?
             ) -> $from_elems_ret:ty $from_elems_body:block
 
-            // A function to decode a mutable slice from its elements, panicking with a more
-            // detailed error than the const version.
+            // A function to decode a mutable slice from its elements.
             $(#[$from_elems_mut_attr:meta])*
             fn from_elems_mut(
                 $($from_elems_mut_param:ident: $from_elems_mut_param_ty:ty),+
@@ -152,45 +146,109 @@ macro_rules! define_slices {
                 $($from_elems_mut_unchecked_param:ident: $from_elems_mut_unchecked_param_ty:ty),+
                 $(,)?
             ) -> $from_elems_mut_unchecked_ret:ty $from_elems_mut_unchecked_body:block
+
+            // A function that allows one to safely access a slice's elements if it is supported.
+            $(#[$as_elems_checked_attr:meta])*
+            const fn as_elems_checked(
+                $($as_elems_checked_param:ident: $as_elems_checked_param_ty:ty),+
+                $(,)?
+            ) -> $as_elems_checked_ret:ty $as_elems_checked_body:block
+
+            // A function that allows one to safely mutably access a slice's elements if it is supported.
+            $(#[$as_elems_mut_checked_attr:meta])*
+            const fn as_elems_mut_checked(
+                $($as_elems_mut_checked_param:ident: $as_elems_mut_checked_param_ty:ty),+
+                $(,)?
+            ) -> $as_elems_mut_checked_ret:ty $as_elems_mut_checked_body:block
+
+            // A function that allows one to unsafely access a slice's elements regardless if it is supported.
+            $(#[$as_elems_unchecked_attr:meta])*
+            const unsafe fn as_elems_unchecked(
+                $($as_elems_unchecked_param:ident: $as_elems_unchecked_param_ty:ty),+
+                $(,)?
+            ) -> $as_elems_unchecked_ret:ty $as_elems_unchecked_body:block
+
+            // A function that allows one to unsafely mutably access a slice's elements regardless if it is supported.
+            $(#[$as_elems_mut_unchecked_attr:meta])*
+            const unsafe fn as_elems_mut_unchecked(
+                $($as_elems_mut_unchecked_param:ident: $as_elems_mut_unchecked_param_ty:ty),+
+                $(,)?
+            ) -> $as_elems_mut_unchecked_ret:ty $as_elems_mut_unchecked_body:block
         }
     )*) => {
         /// A wrapper around a [`SliceWit`] that can be exposed publicly.
         #[repr(transparent)]
-        pub struct SliceKind<S: Slice + ?Sized>(pub(crate) SliceWit<S>);
+        pub struct SliceKind<S>(pub(crate) SliceWit<S>)
+        where
+            S: Slice + ?Sized,
+        ;
 
-        impl<S: Slice + ?Sized> Clone for SliceKind<S> {
+        impl<S> Clone for SliceKind<S>
+        where
+            S: Slice + ?Sized,
+        {
             #[inline(always)]
             fn clone(&self) -> Self {
                 *self
             }
         }
 
-        impl<S: Slice + ?Sized> Copy for SliceKind<S> {}
+        impl<S> Copy for SliceKind<S>
+        where
+            S: Slice + ?Sized,
+        {}
 
 
         /// A type witness for const polymorphism over types.
         #[non_exhaustive]
-        pub(crate) enum SliceWit<S: Slice + ?Sized> {
+        pub(crate) enum SliceWit<S>
+        where
+            S: Slice + ?Sized,
+        {
             $(
-                $(#[cfg($cfg)])*
+                $(#[cfg($($cfg)*)])*
                 $(#[$variant_attr])*
                 #[non_exhaustive]
                 $variant {
                     slice: TypeEq<S, get!($slice | $($slice_override)?)>,
                     elems: TypeEq<[S::Elem], get!([$elem] | $( [$elem_override] )?)>,
                     decode_error: TypeEq<S::DecodeError, get!($decode_err | $($decode_err_override)?)>,
+                    elem_error: TypeEq<S::ElemError, get!($elem_err | $($elem_err_override)?)>,
+                    split_error: TypeEq<S::SplitError, get!($split_err | $($split_err_override)?)>,
                 },
             )*
         }
 
-        impl<S: Slice + ?Sized> SliceWit<S> {
+
+        impl<S> Clone for SliceWit<S>
+        where
+            S: Slice + ?Sized,
+        {
+            #[inline(always)]
+            fn clone(&self) -> Self {
+                *self
+            }
+        }
+
+        impl<S> Copy for SliceWit<S>
+        where
+            S: Slice + ?Sized,
+        {}
+
+        impl<S> SliceWit<S>
+        where
+            S: Slice + ?Sized,
+        {
             #[inline(always)]
             #[must_use]
             #[track_caller]
-            pub(crate) const fn len(self, slice: *const S) -> usize {
+            pub(crate) const fn len(
+                self,
+                slice: *const S,
+            ) -> usize {
                  match self {
                      $(
-                         $(#[cfg($cfg)])*
+                         $(#[cfg($($cfg)*)])*
                          Self::$variant {
                              slice: this,
                              ..
@@ -209,10 +267,14 @@ macro_rules! define_slices {
             #[inline(always)]
             #[must_use]
             #[track_caller]
-            pub(crate) const fn raw_slice(self, data: *const S::Elem, len: usize) -> *const S {
+            pub(crate) const fn raw_slice(
+                self,
+                data: *const S::Elem,
+                len: usize,
+            ) -> *const S {
                 match self {
                     $(
-                        $(#[cfg($cfg)])*
+                        $(#[cfg($($cfg)*)])*
                         Self::$variant {
                             slice,
                             elems,
@@ -223,7 +285,9 @@ macro_rules! define_slices {
                                 $($raw_slice_param: $raw_slice_param_ty,)+
                             ) -> $raw_slice_ret $raw_slice_body
 
-                            slice.uncoerce_ptr(raw_slice(elems.unproject().coerce_ptr(data), len))
+                            slice.uncoerce_ptr(
+                                raw_slice(elems.unproject().coerce_ptr(data), len)
+                            )
                         },
                     )*
                 }
@@ -233,10 +297,14 @@ macro_rules! define_slices {
             #[inline(always)]
             #[must_use]
             #[track_caller]
-            pub(crate) const fn raw_slice_mut(self, data: *mut S::Elem, len: usize) -> *mut S {
+            pub(crate) const fn raw_slice_mut(
+                self,
+                data: *mut S::Elem,
+                len: usize,
+            ) -> *mut S {
                 match self {
                     $(
-                        $(#[cfg($cfg)])*
+                        $(#[cfg($($cfg)*)])*
                         Self::$variant {
                             slice,
                             elems,
@@ -247,7 +315,9 @@ macro_rules! define_slices {
                                 $($raw_slice_mut_param: $raw_slice_mut_param_ty,)+
                             ) -> $raw_slice_mut_ret $raw_slice_mut_body
 
-                            slice.uncoerce_ptr_mut(raw_slice_mut(elems.unproject().coerce_ptr_mut(data), len))
+                            slice.uncoerce_ptr_mut(
+                                raw_slice_mut(elems.unproject().coerce_ptr_mut(data), len)
+                            )
                         },
                     )*
                 }
@@ -257,10 +327,14 @@ macro_rules! define_slices {
             #[inline(always)]
             #[must_use]
             #[track_caller]
-            pub(crate) const fn raw_slice_nonnull(self, data: NonNull<S::Elem>, len: usize) -> NonNull<S> {
+            pub(crate) const fn raw_slice_nonnull(
+                self,
+                data: NonNull<S::Elem>,
+                len: usize,
+            ) -> NonNull<S> {
                 match self {
                     $(
-                        $(#[cfg($cfg)])*
+                        $(#[cfg($($cfg)*)])*
                         Self::$variant {
                             slice,
                             elems,
@@ -271,7 +345,9 @@ macro_rules! define_slices {
                                 $($raw_slice_nonnull_param: $raw_slice_nonnull_param_ty,)+
                             ) -> $raw_slice_nonnull_ret $raw_slice_nonnull_body
 
-                            slice.uncoerce_nonnull(raw_slice_nonnull(elems.unproject().coerce_nonnull(data), len))
+                            slice.uncoerce_nonnull(
+                                raw_slice_nonnull(elems.unproject().coerce_nonnull(data), len)
+                            )
                         },
                     )*
                 }
@@ -280,10 +356,14 @@ macro_rules! define_slices {
             #[inline(always)]
             #[must_use]
             #[track_caller]
-            pub(crate) const unsafe fn from_raw_parts<'a>(self, data: *const S::Elem, len: usize) -> &'a S {
+            pub(crate) const unsafe fn from_raw_parts<'a>(
+                self,
+                data: *const S::Elem,
+                len: usize,
+            ) -> &'a S {
                 match self {
                     $(
-                        $(#[cfg($cfg)])*
+                        $(#[cfg($($cfg)*)])*
                         Self::$variant {
                             slice,
                             elems,
@@ -294,30 +374,380 @@ macro_rules! define_slices {
                                 $($from_raw_parts_param: $from_raw_parts_param_ty,)+
                             ) -> $from_raw_parts_ret $from_raw_parts_body
 
-                            slice.uncoerce_ref(
-                                // SAFETY: The caller ensures this is safe.
-                                unsafe { from_raw_parts(elems.unproject().coerce_ptr(data), len) }
-                            )
+                            slice.uncoerce_ref(unsafe {
+                                from_raw_parts(elems.unproject().coerce_ptr(data), len)
+                            })
+                        },
+                    )*
+                }
+            }
+
+            #[inline(always)]
+            #[must_use]
+            #[track_caller]
+            pub(crate) const unsafe fn from_raw_parts_mut<'a>(
+                self,
+                data: *mut S::Elem,
+                len: usize,
+            ) -> &'a mut S {
+                match self {
+                    $(
+
+                        $(#[cfg($($cfg)*)])*
+                        Self::$variant {
+                            slice,
+                            elems,
+                            ..
+                        } => {
+                            $(#[$len_attr])*
+                            const unsafe fn from_raw_parts_mut<$from_raw_parts_mut_lt $(, $($generics)*)? >(
+                                $($from_raw_parts_mut_param: $from_raw_parts_mut_param_ty,)+
+                            ) -> $from_raw_parts_mut_ret $from_raw_parts_mut_body
+
+                            slice.uncoerce_mut(unsafe {
+                                from_raw_parts_mut(elems.unproject().coerce_ptr_mut(data), len)
+                            })
+                        },
+                    )*
+                }
+            }
+
+            #[inline(always)]
+            #[track_caller]
+            pub(crate) const fn handle_decode_error(
+                self,
+                decode_error: S::DecodeError,
+            ) -> ! {
+                match self {
+                    $(
+                        $(#[cfg($($cfg)*)])*
+                        #[allow(unreachable_code)]
+                        Self::$variant {
+                            decode_error: this,
+                            ..
+                        } => {
+                            $(#[$handle_decode_err_attr])*
+                            const fn handle_decode_error(
+                                $($handle_decode_err_param: $handle_decode_err_param_ty,)+
+                            ) -> $handle_decode_err_ret $handle_decode_err_body
+
+                            handle_decode_error(this.coerce(decode_error))
+                        },
+                    )*
+                }
+            }
+
+            #[inline(always)]
+            #[track_caller]
+            pub(crate) const fn handle_elem_error(
+                self,
+                elem_error: S::ElemError,
+            ) -> ! {
+                match self {
+                    $(
+                        $(#[$cfg($($cfg)*)])*
+                        #[allow(unreachable_code)]
+                        Self::$variant {
+                            elem_error: this,
+                            ..
+                        } => {
+                            $(#[$handle_elem_err_attr])*
+                            const fn handle_elem_error(
+                                $($handle_elem_err_param: $handle_elem_err_param_ty,)+
+                            ) -> $handle_elem_err_ret $handle_elem_err_body
+
+                            handle_elem_error(this.coerce(elem_error))
+                        },
+                    )*
+                }
+            }
+
+            #[inline(always)]
+            #[track_caller]
+            pub(crate) const fn handle_split_error(
+                self,
+                split_error: S::SplitError,
+            ) -> ! {
+                match self {
+                    $(
+                        $(#[cfg($($cfg)*)])*
+                        #[allow(unreachable_code)]
+                        Self::$variant {
+                            split_error: this,
+                            ..
+                        } => {
+                            $(#[$handle_split_err_attr])*
+                            const fn handle_split_error(
+                                $($handle_split_err_param: $handle_split_err_param_ty,)+
+                            ) -> $handle_split_err_ret $handle_split_err_body
+
+                            handle_split_error(this.coerce(split_error))
+                        },
+                    )*
+                }
+            }
+
+            #[inline(always)]
+            #[track_caller]
+            pub(crate) const fn try_from_elems(
+                self,
+                elems: &[S::Elem],
+            ) -> Result<&S, S::DecodeError> {
+                match self {
+                    $(
+                        $(#[cfg($($cfg)*)])*
+                        Self::$variant {
+                            slice,
+                            elems: this,
+                            decode_error,
+                            ..
+                        } => {
+                            $(#[$try_from_elems_attr])*
+                            const fn try_from_elems $(< $($generics)*  >)? (
+                                $($try_from_elems_param: $try_from_elems_param_ty,)+
+                            ) -> $try_from_elems_ret $try_from_elems_body
+
+                            slice
+                                .wrap_ref()
+                                .wrap_result(decode_error)
+                                .uncoerce(try_from_elems(this.coerce_ref(elems)))
+                        },
+                    )*
+                }
+            }
+
+            #[inline(always)]
+            #[track_caller]
+            pub(crate) const fn try_from_elems_mut(
+                self,
+                elems: &mut [S::Elem],
+            ) -> Result<&mut S, S::DecodeError> {
+                match self {
+                    $(
+                        $(#[cfg($($cfg)*)])*
+                        Self::$variant {
+                            slice,
+                            elems: this,
+                            decode_error,
+                            ..
+                        } => {
+                            $(#[$try_from_elems_mut_attr])*
+                            const fn try_from_elems_mut $( < $($generics)* > )? (
+                                $($try_from_elems_mut_param: $try_from_elems_mut_param_ty,)+
+                            ) -> $try_from_elems_mut_ret $try_from_elems_mut_body
+
+                            slice
+                                .wrap_mut()
+                                .wrap_result(decode_error)
+                                .uncoerce(try_from_elems_mut(this.coerce_mut(elems)))
+                        }
+                    )*
+                }
+            }
+
+            #[inline(always)]
+            #[must_use]
+            #[track_caller]
+            pub(crate) const fn from_elems(
+                self,
+                elems: &[S::Elem],
+            ) -> &S {
+                match NoDrop::new(self.try_from_elems(elems)).transpose() {
+                    Ok(slice) => slice.into_inner(),
+                    #[allow(unreachable_code)]
+                    Err(err) => self.handle_decode_error(err.into_inner()),
+                }
+            }
+
+            #[inline(always)]
+            #[must_use]
+            #[track_caller]
+            pub(crate) const fn from_elems_mut(
+                self,
+                elems: &mut [S::Elem],
+            ) -> &mut S {
+                match NoDrop::new(self.try_from_elems_mut(elems)).transpose() {
+                    Ok(slice) => slice.into_inner(),
+                    Err(err) => self.handle_decode_error(err.into_inner()),
+                }
+            }
+
+            #[inline(always)]
+            #[must_use]
+            #[track_caller]
+            pub(crate) const unsafe fn from_elems_unchecked(
+                self,
+                elems: &[S::Elem],
+            ) -> &S {
+                match self {
+                    $(
+                        $(#[cfg($($cfg)*)])*
+                        Self::$variant {
+                            slice,
+                            elems: this,
+                            ..
+                        } => {
+                            $(#[$from_elems_unchecked_attr])*
+                            const unsafe fn from_elems_unchecked $(< $($generics)* >)? (
+                                $($from_elems_unchecked_param: $from_elems_unchecked_param_ty,)+
+                            ) -> $from_elems_unchecked_ret $from_elems_unchecked_body
+
+                            slice.uncoerce_ref(unsafe {
+                                from_elems_unchecked(this.coerce_ref(elems))
+                            })
+                        },
+                    )*
+                }
+            }
+
+            #[inline(always)]
+            #[must_use]
+            #[track_caller]
+            pub(crate) const unsafe fn from_elems_mut_unchecked(
+                self,
+                elems: &mut [S::Elem],
+            ) -> &mut S {
+                match self {
+                    $(
+                        $(#[cfg($($cfg)*)])*
+                        Self::$variant {
+                            slice,
+                            elems: this,
+                            ..
+                        } => {
+                            $(#[$from_elems_mut_unchecked_attr])*
+                            const unsafe fn from_elems_mut_unchecked $(< $($generics)* >)? (
+                                $($from_elems_mut_unchecked_param: $from_elems_mut_unchecked_param_ty,)+
+                            ) -> $from_elems_mut_unchecked_ret $from_elems_mut_unchecked_body
+
+                            slice.uncoerce_mut(unsafe {
+                                from_elems_mut_unchecked(this.coerce_mut(elems))
+                            })
+                        },
+                    )*
+                }
+            }
+
+            #[inline(always)]
+            #[must_use]
+            pub(crate) const fn as_elems_checked(
+                self,
+                slice: &S,
+            ) -> Option<&[S::Elem]> {
+                match self {
+                    $(
+                        $(#[cfg($($cfg)*)])*
+                        Self::$variant {
+                            slice: this,
+                            elems,
+                            ..
+                        } => {
+                            $(#[$as_elems_checked_attr])*
+                            const fn as_elems_checked $(< $($generics)* >)? (
+                                $($as_elems_checked_param: $as_elems_checked_param_ty,)+
+                            ) -> $as_elems_checked_ret $as_elems_checked_body
+
+                            elems
+                                .wrap_ref()
+                                .wrap_option()
+                                .uncoerce(as_elems_checked(this.coerce_ref(slice)))
+                        },
+                    )*
+                }
+            }
+
+            #[inline(always)]
+            #[must_use]
+            pub(crate) const fn as_elems_mut_checked(
+                self,
+                slice: &mut S,
+            ) -> Option<&mut [S::Elem]>
+            {
+                match self {
+                    $(
+                        $(#[cfg($($cfg)*)])*
+                        Self::$variant {
+                            slice: this,
+                            elems,
+                            ..
+                        } => {
+                            $(#[$as_elems_mut_checked_attr])*
+                            const fn as_elems_mut_checked $(< $($generics)* >)? (
+                                $($as_elems_mut_checked_param: $as_elems_mut_checked_param_ty,)+
+                            ) -> $as_elems_mut_checked_ret $as_elems_mut_checked_body
+
+                            elems
+                                .wrap_mut()
+                                .wrap_option()
+                                .uncoerce(as_elems_mut_checked(this.coerce_mut(slice)))
+                        },
+                    )*
+                }
+            }
+
+            #[inline(always)]
+            #[must_use]
+            pub(crate) const unsafe fn as_elems_unchecked(
+                self,
+                slice: &S,
+            ) -> &[S::Elem]
+            {
+                match self {
+                    $(
+                        $(#[cfg($($cfg)*)])*
+                        Self::$variant {
+                            slice: this,
+                            elems,
+                            ..
+                        } => {
+                            $(#[$as_elems_unchecked_attr])*
+                            const unsafe fn as_elems_unchecked $(< $($generics)* >)? (
+                                $($as_elems_unchecked_param: $as_elems_unchecked_param_ty,)+
+                            ) -> $as_elems_unchecked_ret $as_elems_unchecked_body
+
+                            elems.uncoerce_ref(unsafe {
+                                as_elems_unchecked(this.coerce_ref(slice))
+                            })
+                        },
+                    )*
+                }
+            }
+
+
+            #[inline(always)]
+            #[must_use]
+            pub(crate) const unsafe fn as_elems_mut_unchecked(
+                self,
+                slice: &mut S,
+            ) -> &mut [S::Elem]
+            {
+                match self {
+                    $(
+                        $(#[cfg($($cfg)*)])*
+                        Self::$variant {
+                            slice: this,
+                            elems,
+                            ..
+                        } => {
+                            $(#[$as_elems_mut_unchecked_attr])*
+                            const unsafe fn as_elems_mut_unchecked $(< $($generics)* >)? (
+                                $($as_elems_mut_unchecked_param: $as_elems_mut_unchecked_param_ty,)+
+                            ) -> $as_elems_mut_unchecked_ret $as_elems_mut_unchecked_body
+
+                            elems.uncoerce_mut(unsafe {
+                                as_elems_mut_unchecked(this.coerce_mut(slice))
+                            })
                         },
                     )*
                 }
             }
         }
 
-        impl<S: Slice + ?Sized> Clone for SliceWit<S> {
-            #[inline(always)]
-            fn clone(&self) -> Self {
-                *self
-            }
-        }
-
-        impl<S: Slice + ?Sized> Copy for SliceWit<S> {}
-
         $(
-            $(#[cfg($cfg)])*
+            $(#[cfg($($cfg)*)])*
             impl $(< $($generics)* >)? Sealed for $slice {}
 
-            $(#[cfg($cfg)])*
+            $(#[cfg($($cfg)*)])*
             $(#[doc = $doc])*
             unsafe impl $(< $($generics)* >)? Slice for $slice {
                 $(#[$elem_attr])*
@@ -326,10 +756,18 @@ macro_rules! define_slices {
                 $(#[$decode_err_attr])*
                 type DecodeError = $decode_err;
 
+                $(#[$elem_err_attr])*
+                type ElemError = $elem_err;
+
+                $(#[$split_err_attr])*
+                type SplitError = $split_err;
+
                 const KIND: SliceKind<Self> = SliceKind(SliceWit::$variant {
                     slice: TypeEq::new(),
                     elems: TypeEq::new(),
                     decode_error: TypeEq::new(),
+                    elem_error: TypeEq::new(),
+                    split_error: TypeEq::new(),
                 });
             }
         )*
@@ -342,6 +780,11 @@ define_slices! {
         type Elem = T | S::Elem;
         /// It is impossible for `[T] -> [T]` to fail.
         type DecodeError = Infallible;
+        /// It is impossible for `[T] -> [T]` to fail.
+        type ElemError = Infallible;
+        /// There are no additional invariants to check for a normal slice besides
+        /// indicies being within bounds.
+        type SplitError = Infallible;
         /// Just a normal slice.
         type Variant = Slice;
 
@@ -419,9 +862,20 @@ define_slices! {
         /// This is impossible to call, as it is impossible for decoding
         /// of a normal slice to fail.
         #[inline(always)]
-        #[must_use]
-        #[allow(unused_variables, unreachable_code)]
         const fn handle_decode_error(err: Infallible) -> ! {
+            match err {}
+        }
+
+        /// This is impossible to call, as it is impossible for getting the inner
+        /// elements of a normal slice to fail.
+        #[inline(always)]
+        const fn handle_elem_error(err: Infallible) -> ! {
+            match err {}
+        }
+
+        /// This is impossible to call, reasons are ***TODO***.
+        #[inline(always)]
+        const fn handle_split_error(err: Infallible) -> ! {
             match err {}
         }
 
@@ -431,7 +885,6 @@ define_slices! {
         ///
         /// This never returns an error.
         #[inline(always)]
-        #[must_use]
         const fn try_from_elems(elems: &[T]) -> Result<&[T], Infallible> {
             Ok(elems)
         }
@@ -442,7 +895,6 @@ define_slices! {
         ///
         /// This never returns an error.
         #[inline(always)]
-        #[must_use]
         const fn try_from_elems_mut(elems: &mut [T]) -> Result<&mut [T], Infallible> {
             Ok(elems)
         }
@@ -490,6 +942,50 @@ define_slices! {
         const unsafe fn from_elems_mut_unchecked(elems: &mut [T]) -> &mut [T] {
             elems
         }
+
+        /// This just returns this slice.
+        ///
+        /// # Returns
+        ///
+        /// This always returns [`Some`].
+        #[inline(always)]
+        #[must_use]
+        const fn as_elems_checked(slice: &[T]) -> Option<&[T]> {
+            Some(slice)
+        }
+
+        /// This just returns this slice.
+        ///
+        /// # Returns
+        ///
+        /// This always returns [`Some`].
+        #[inline(always)]
+        #[must_use]
+        const fn as_elems_mut_checked(slice: &mut [T]) -> Option<&mut [T]> {
+            Some(slice)
+        }
+
+        /// This just returns this slice.
+        ///
+        /// # Safety
+        ///
+        /// This is always safe.
+        #[inline(always)]
+        #[must_use]
+        const unsafe fn as_elems_unchecked(slice: &[T]) -> &[T] {
+            slice
+        }
+
+        /// This just returns this slice.
+        ///
+        /// # Safety
+        ///
+        /// This is always safe.
+        #[inline(always)]
+        #[must_use]
+        const unsafe fn as_elems_mut_unchecked(slice: &mut [T]) -> &mut [T] {
+            slice
+        }
     }
 
     unsafe impl Slice for str {
@@ -497,6 +993,12 @@ define_slices! {
         type Elem = u8;
         /// Error returned when a `[u8]` is not valid UTF-8.
         type DecodeError = Utf8Error;
+        /// Error that occurs when attempting to safely get a `&mut [u8]` from a `&mut str`.
+        type ElemError = &'static str;
+        /// Error that occurs when attempting to split a [`str`] at some point that is not
+        /// a UTF-8 character boundary.
+        type SplitError = &'static str;
+
         /// String slice.
         type Variant = Str;
 
@@ -590,11 +1092,24 @@ define_slices! {
 
         /// Panics with a minimal error about the string being invalid UTF-8.
         #[inline(always)]
-        #[must_use]
         #[track_caller]
         const fn handle_decode_error(err: Utf8Error) -> ! {
             let _ = err;
             panic!("invalid utf-8")
+        }
+
+        /// ***TODO***
+        #[inline(always)]
+        #[track_caller]
+        const fn handle_elem_error(err: &'static str) -> ! {
+            panic!("{}", err)
+        }
+
+        /// ***TODO***
+        #[inline(always)]
+        #[track_caller]
+        const fn handle_split_error(err: &'static str) -> ! {
+            panic!("{}", err)
         }
 
         /// Create a string slice from `bytes` if `bytes`
@@ -604,7 +1119,6 @@ define_slices! {
         ///
         /// Returns an error if `bytes` is not valid UTF-8.
         #[inline(always)]
-        #[must_use]
         const fn try_from_elems(bytes: &[u8]) -> Result<&str, Utf8Error> {
             core::str::from_utf8(bytes)
         }
@@ -616,7 +1130,6 @@ define_slices! {
         ///
         /// Returns an error if `bytes` is not valid UTF-8.
         #[inline(always)]
-        #[must_use]
         const fn try_from_elems_mut(bytes: &mut [u8]) -> Result<&mut str, Utf8Error> {
             core::str::from_utf8_mut(bytes)
         }
@@ -675,6 +1188,69 @@ define_slices! {
         const unsafe fn from_elems_mut_unchecked(bytes: &mut [u8]) -> &mut str {
             // SAFETY: The caller ensures `bytes` is valid UTF-8.
             unsafe { core::str::from_utf8_unchecked_mut(bytes) }
+        }
+
+        /// Borrow the underlying bytes of this string slice.
+        ///
+        /// # Returns
+        ///
+        /// This always returns [`Some`].
+        #[inline(always)]
+        #[must_use]
+        const fn as_elems_checked(slice: &str) -> Option<&[u8]> {
+            Some(slice.as_bytes())
+        }
+
+        /// Mutably borrow the underlying bytes of this string slice.
+        ///
+        /// # Returns
+        ///
+        /// This always returns [`None`].
+        ///
+        /// This is because there is no safe way of mutably getting
+        /// the underlying bytes of a [`str`] without the possibility
+        /// of the caller using it in a manner that results in it being
+        /// invalid UTF-8 before the borrow ends.
+        ///
+        /// See [`str::as_bytes_mut`] for more info. If you need to use
+        /// the [`Slice`] API, use [`Slice::as_elems_mut_unchecked`].
+        #[inline(always)]
+        #[must_use]
+        const fn as_elems_mut_checked(slice: &mut str) -> Option<&mut [u8]> {
+            let _ = slice;
+            None
+        }
+
+        /// Borrow the underlying bytes of this string slice.
+        ///
+        /// # Safety
+        ///
+        /// This is always safe to call.
+        #[inline(always)]
+        #[must_use]
+        const unsafe fn as_elems_unchecked(slice: &str) -> &[u8] {
+            slice.as_bytes()
+        }
+
+        /// Mutably borrow the underlying bytes of this string slice.
+        ///
+        /// # Safety
+        ///
+        /// When using this, the caller has to be really careful when
+        /// mutating the data stored within the byte slice.
+        ///
+        /// If it is invalid UTF-8 when the borrow ends, then you're
+        /// left with a [`str`] containing invalid UTF-8, which is
+        /// always undefined behavior.
+        ///
+        /// As such, use this sparringly. See [`str::as_bytes_mut`]
+        /// for more info on the topic.
+        #[inline(always)]
+        #[must_use]
+        const unsafe fn as_elems_mut_unchecked(slice: &mut str) -> &mut [u8] {
+            // SAFETY: The caller ensures that when the borrow ends,
+            //         the string is still valid UTF-8.
+            unsafe { slice.as_bytes_mut() }
         }
     }
 }

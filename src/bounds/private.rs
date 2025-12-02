@@ -11,28 +11,34 @@ pub trait Sealed {}
 macro_rules! define_bounds {
     ($(
         $(#[doc = $doc:tt])*
-        $(#[cfg($cfg:meta)])?
+        $(#[cfg($($cfg:tt)*)])?
 
         $variant:ident($pat:pat => $ty:ty) => $bounds:expr
     ),* $(,)?) => {
         /// A type witness for the supported range bounds types.
         #[non_exhaustive]
-        pub(crate) enum BoundsWit<B: SliceBounds + ?Sized> {
+        pub(crate) enum BoundsWit<B>
+        where
+            B: SliceBounds + ?Sized,
+        {
             $(
                 $(#[doc = $doc])*
-                $(#[cfg($cfg)])?
+                $(#[cfg($($cfg)*)])?
                 $variant(TypeEq<B, $ty>),
             )*
         }
 
-        impl<B: SliceBounds + ?Sized> BoundsWit<B> {
+        impl<B> BoundsWit<B>
+        where
+            B: SliceBounds + ?Sized,
+        {
             /// Borrow the bounds of some `&B` as a tuple.
             #[inline(always)]
             #[must_use]
             pub(crate) const fn as_bounds(self, bounds: &B) -> (Bound<&usize>, Bound<&usize>) {
                 match self {
                     $(
-                        $(#[cfg($cfg)])?
+                        $(#[cfg($($cfg)*)])?
                         Self::$variant(conv) => {
                             let $pat = conv.coerce_ref(bounds);
 
@@ -43,34 +49,49 @@ macro_rules! define_bounds {
             }
         }
 
-        impl<B: SliceBounds + ?Sized> Clone for BoundsWit<B> {
+        impl<B> Clone for BoundsWit<B>
+        where
+            B: SliceBounds + ?Sized,
+        {
             #[inline(always)]
             fn clone(&self) -> Self {
                 *self
             }
         }
 
-        impl<B: SliceBounds + ?Sized> Copy for BoundsWit<B> {}
+        impl<B> Copy for BoundsWit<B>
+        where
+            B: SliceBounds + ?Sized,
+        {}
 
 
         /// A wrapper for [`BoundsWit`] that can be exposed publicly.
         #[repr(transparent)]
-        pub struct BoundsKind<B: SliceBounds + ?Sized>(pub(crate) BoundsWit<B>);
+        pub struct BoundsKind<B>(pub(crate) BoundsWit<B>)
+        where
+            B: SliceBounds + ?Sized,
+        ;
 
-        impl<B: SliceBounds + ?Sized> Clone for BoundsKind<B> {
+        impl<B> Clone for BoundsKind<B>
+        where
+            B: SliceBounds + ?Sized,
+        {
             #[inline(always)]
             fn clone(&self) -> Self {
                 *self
             }
         }
 
-        impl<B: SliceBounds + ?Sized> Copy for BoundsKind<B> {}
+        impl<B> Copy for BoundsKind<B>
+        where
+            B: SliceBounds + ?Sized,
+        {}
 
         $(
-            $(#[cfg($cfg)])?
+            $(#[cfg($($cfg)*)])?
             impl Sealed for $ty {}
 
-            $(#[cfg($cfg)])?
+            $(#[cfg($($cfg)*)])?
             unsafe impl super::SliceBounds for $ty
             {
                 type Inner = $ty;
@@ -99,7 +120,7 @@ define_bounds! {
     /// in a manner consistent with [`ops::RangeBounds`].
     ///
     /// Until this is possible, we're choosing not to support this type.
-    #[cfg(all())]
+    #[cfg(false)]
     RangeInclusive(range => ops::RangeInclusive<usize>) => (
         Bound::Included(range.start()),
         Bound::Excluded(range.end()),

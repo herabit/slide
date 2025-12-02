@@ -27,6 +27,7 @@ pub struct SliceRange {
     end: usize,
 }
 
+#[allow(clippy::len_without_is_empty)]
 impl SliceRange {
     /// Attempt to create a new [`SliceRange`] from `start..end`.
     ///
@@ -34,7 +35,6 @@ impl SliceRange {
     ///
     /// Returns an error if `start > end.
     #[inline(always)]
-    #[must_use]
     pub const fn try_new(start: usize, end: usize) -> Result<SliceRange, SliceRangeError> {
         if start > end {
             Err(SliceRangeError::StartTooLarge {
@@ -229,12 +229,14 @@ impl SliceRange {
     /// - The start index is greater than the end index (`start > end`).
     /// - The end index is greater than the length (`end > len`).
     #[inline(always)]
-    #[must_use]
     #[track_caller]
-    pub const fn try_from_slice_bounds<B: SliceBounds + ?Sized>(
+    pub const fn try_from_slice_bounds<B>(
         bounds: &B,
         len: usize,
-    ) -> Result<SliceRange, SliceRangeError> {
+    ) -> Result<SliceRange, SliceRangeError>
+    where
+        B: SliceBounds + ?Sized,
+    {
         try_from_bounds(as_bounds(bounds), len)
     }
 
@@ -250,12 +252,11 @@ impl SliceRange {
     /// - The start index is greater than the end index (`start > end`).
     /// - The end index is greater than the length (`end > len`).
     #[inline(always)]
-    #[must_use]
     #[track_caller]
-    pub fn try_from_range_bounds<B: RangeBounds<usize> + ?Sized>(
-        bounds: &B,
-        len: usize,
-    ) -> Result<SliceRange, SliceRangeError> {
+    pub fn try_from_range_bounds<B>(bounds: &B, len: usize) -> Result<SliceRange, SliceRangeError>
+    where
+        B: RangeBounds<usize> + ?Sized,
+    {
         try_from_bounds((bounds.start_bound(), bounds.end_bound()), len)
     }
 
@@ -272,7 +273,10 @@ impl SliceRange {
     #[inline(always)]
     #[must_use]
     #[track_caller]
-    pub const fn from_slice_bounds<B: SliceBounds + ?Sized>(bounds: &B, len: usize) -> SliceRange {
+    pub const fn from_slice_bounds<B>(bounds: &B, len: usize) -> SliceRange
+    where
+        B: SliceBounds + ?Sized,
+    {
         match try_from_bounds(as_bounds(bounds), len) {
             Ok(range) => range,
             Err(err) => err.handle(),
@@ -292,7 +296,10 @@ impl SliceRange {
     #[inline(always)]
     #[must_use]
     #[track_caller]
-    pub fn from_range_bounds<B: RangeBounds<usize> + ?Sized>(bounds: &B, len: usize) -> SliceRange {
+    pub fn from_range_bounds<B>(bounds: &B, len: usize) -> SliceRange
+    where
+        B: RangeBounds<usize> + ?Sized,
+    {
         match try_from_bounds((bounds.start_bound(), bounds.end_bound()), len) {
             Ok(range) => range,
             Err(err) => panic!("{err}"),
@@ -314,10 +321,10 @@ impl SliceRange {
     #[inline(always)]
     #[must_use]
     #[track_caller]
-    pub const unsafe fn from_slice_bounds_unchecked<B: SliceBounds + ?Sized>(
-        bounds: &B,
-        len: usize,
-    ) -> SliceRange {
+    pub const unsafe fn from_slice_bounds_unchecked<B>(bounds: &B, len: usize) -> SliceRange
+    where
+        B: SliceBounds + ?Sized,
+    {
         match try_from_bounds(as_bounds(bounds), len) {
             Ok(range) => range,
             // SAFETY: The caller ensures that this can never occur.
@@ -340,10 +347,10 @@ impl SliceRange {
     #[inline(always)]
     #[must_use]
     #[track_caller]
-    pub unsafe fn from_range_bounds_unchecked<B: RangeBounds<usize> + ?Sized>(
-        bounds: &B,
-        len: usize,
-    ) -> SliceRange {
+    pub unsafe fn from_range_bounds_unchecked<B>(bounds: &B, len: usize) -> SliceRange
+    where
+        B: RangeBounds<usize> + ?Sized,
+    {
         match try_from_bounds((bounds.start_bound(), bounds.end_bound()), len) {
             Ok(range) => range,
             // SAFETY: The caller ensures this can never occur.
@@ -366,7 +373,6 @@ impl SliceRange {
 /// - The start index is greater than the end index (`start > end`).
 /// - The end index is greater than the length (`end > len`).
 #[inline(always)]
-#[must_use]
 const fn try_from_bounds(
     (start, end): (Bound<&usize>, Bound<&usize>),
     len: usize,
@@ -615,7 +621,6 @@ pub enum SliceRangeError {
 impl SliceRangeError {
     /// Panic with an error message if this error was hit.
     #[inline(always)]
-    #[must_use]
     #[track_caller]
     #[cold]
     pub(crate) const fn handle(&self) -> ! {
@@ -639,7 +644,6 @@ impl SliceRangeError {
     ///
     /// Failure to do so is undefined behavior.
     #[inline(always)]
-    #[must_use]
     #[track_caller]
     #[cold]
     pub(crate) const unsafe fn handle_unreachable(self) -> ! {

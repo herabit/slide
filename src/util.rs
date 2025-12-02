@@ -50,7 +50,10 @@ pub(crate) const fn bound_ref<T>(bound: &Bound<T>) -> Bound<&T> {
 #[inline(always)]
 #[must_use]
 #[track_caller]
-pub(crate) const fn bound_copied<T: Copy>(bound: Bound<&T>) -> Bound<T> {
+pub(crate) const fn bound_copied<T>(bound: Bound<&T>) -> Bound<T>
+where
+    T: Copy,
+{
     match bound {
         Bound::Included(&bound) => Bound::Included(bound),
         Bound::Excluded(&bound) => Bound::Excluded(bound),

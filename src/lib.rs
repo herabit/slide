@@ -1,4 +1,5 @@
 #![cfg_attr(not(test), no_std)]
+#![allow(clippy::needless_lifetimes, clippy::wrong_self_convention)]
 
 #[cfg(feature = "alloc")]
 extern crate alloc;
@@ -18,6 +19,9 @@ mod util;
 
 /// Marker types and traits that are used internally.
 mod marker;
+
+/// Just some helpers for [`str`]s.
+pub mod str;
 
 /// What is a slice? This module seeks to answer that question.
 pub mod slice;

@@ -15,7 +15,10 @@ use super::variance::Covariant;
 /// 1. If `A == B`, then `Call<F, A> == Call<F, B>`.
 ///
 /// 2. If `Call<F, A> != Call<F, B>`, then `A != B`.
-pub(crate) trait Func<Arg: ?Sized> {
+pub(crate) trait Func<Arg>
+where
+    Arg: ?Sized,
+{
     type Output: ?Sized;
 }
 
@@ -28,7 +31,10 @@ pub(crate) trait Func<Arg: ?Sized> {
 /// 1. If `A == B`, then `Uncall<F, A> == Uncall<F, B>`.
 ///
 /// 2. If `A != B`, then `Uncall<F, A> != Uncall<F, B>`.
-pub(crate) trait RevFunc<Ret: ?Sized>: Func<Self::Arg, Output = Ret> {
+pub(crate) trait RevFunc<Ret>: Func<Self::Arg, Output = Ret>
+where
+    Ret: ?Sized,
+{
     type Arg: ?Sized;
 }
 
@@ -45,8 +51,10 @@ pub(crate) trait RevFunc<Ret: ?Sized>: Func<Self::Arg, Output = Ret> {
 /// 3. If `A != B`, then `Call<F, A> != Call<F, B>`.
 ///
 /// 4. If `Call<F, A> != Call<F, B>`, then `A != B`.
-pub(crate) trait InjFunc<Arg: ?Sized>:
+pub(crate) trait InjFunc<Arg>:
     Func<Arg, Output = Self::Ret> + RevFunc<Self::Ret, Arg = Arg>
+where
+    Arg: ?Sized,
 {
     type Ret: ?Sized;
 }
@@ -71,47 +79,73 @@ pub(crate) trait HasFunc {
 // {
 // }
 
-impl<F: ?Sized, A: ?Sized, R: ?Sized> InjFunc<A> for F
+impl<F, A, R> InjFunc<A> for F
 where
     F: Func<A, Output = R> + RevFunc<R, Arg = A>,
+    F: ?Sized,
+    A: ?Sized,
+    R: ?Sized,
 {
     type Ret = R;
 }
 
 /// Calls a type level function on a provided type.
-pub(crate) type Call<F: Func<A> + ?Sized, A: ?Sized> = <F as Func<A>>::Output;
+pub(crate) type Call<F, A>
+where
+    F: Func<A> + ?Sized,
+    A: ?Sized,
+= <F as Func<A>>::Output;
 
 /// Reverses a type level function on a provided type.
-pub(crate) type Uncall<F: RevFunc<R> + ?Sized, R: ?Sized> = <F as RevFunc<R>>::Arg;
+pub(crate) type Uncall<F, R>
+where
+    F: RevFunc<R> + ?Sized,
+    R: ?Sized,
+= <F as RevFunc<R>>::Arg;
 
 /// A type-level function that reverses another.
-pub(crate) struct Rev<F: ?Sized>(Covariant<F>);
+pub(crate) struct Rev<F>(Covariant<F>)
+where
+    F: ?Sized;
 
 // The empty tuple is the identity element.
-impl<A: ?Sized> Func<A> for () {
+impl<A> Func<A> for ()
+where
+    A: ?Sized,
+{
     type Output = A;
 }
 
-impl<A: ?Sized> RevFunc<A> for () {
+impl<A> RevFunc<A> for ()
+where
+    A: ?Sized,
+{
     type Arg = A;
 }
 
 // A [`PhantomData`] for an `F` is just `F`.
-impl<F: ?Sized, A: ?Sized> Func<A> for PhantomData<F>
+impl<F, A> Func<A> for PhantomData<F>
 where
     F: Func<A>,
+    F: ?Sized,
+    A: ?Sized,
 {
     type Output = Call<F, A>;
 }
 
-impl<F: ?Sized, R: ?Sized> RevFunc<R> for PhantomData<F>
+impl<F, R> RevFunc<R> for PhantomData<F>
 where
     F: RevFunc<R>,
+    F: ?Sized,
+    R: ?Sized,
 {
     type Arg = Uncall<F, R>;
 }
 
-impl<F: ?Sized> Rev<F> {
+impl<F> Rev<F>
+where
+    F: ?Sized,
+{
     /// Creates a new [`Rev`] for `F`.
     #[inline(always)]
     #[must_use]
@@ -120,43 +154,59 @@ impl<F: ?Sized> Rev<F> {
     }
 }
 
-impl<F: ?Sized, A: ?Sized> Func<A> for Rev<F>
+impl<F, A> Func<A> for Rev<F>
 where
     F: RevFunc<A>,
+    F: ?Sized,
+    A: ?Sized,
 {
     type Output = Uncall<F, A>;
 }
 
-impl<F: ?Sized, R: ?Sized> RevFunc<R> for Rev<F>
+impl<F, R> RevFunc<R> for Rev<F>
 where
     F: InjFunc<R>,
+    F: ?Sized,
+    R: ?Sized,
 {
     type Arg = <F as InjFunc<R>>::Ret;
 }
 
-impl<F: ?Sized> Clone for Rev<F> {
+impl<F> Clone for Rev<F>
+where
+    F: ?Sized,
+{
     #[inline(always)]
     fn clone(&self) -> Self {
         *self
     }
 }
 
-impl<F: ?Sized> Copy for Rev<F> {}
+impl<F> Copy for Rev<F> where F: ?Sized {}
 
 /// A type-level function that wraps a given type
 /// in a pointer.
 #[derive(Clone, Copy)]
 pub(crate) struct Ptr;
 
-impl<A: ?Sized> Func<A> for Ptr {
+impl<A> Func<A> for Ptr
+where
+    A: ?Sized,
+{
     type Output = *const A;
 }
 
-impl<A: ?Sized> RevFunc<*const A> for Ptr {
+impl<A> RevFunc<*const A> for Ptr
+where
+    A: ?Sized,
+{
     type Arg = A;
 }
 
-impl<A: ?Sized> HasFunc for *const A {
+impl<A> HasFunc for *const A
+where
+    A: ?Sized,
+{
     type Arg = A;
     type Func = Ptr;
 }
@@ -166,15 +216,24 @@ impl<A: ?Sized> HasFunc for *const A {
 #[derive(Clone, Copy)]
 pub(crate) struct PtrMut;
 
-impl<A: ?Sized> Func<A> for PtrMut {
+impl<A> Func<A> for PtrMut
+where
+    A: ?Sized,
+{
     type Output = *mut A;
 }
 
-impl<A: ?Sized> RevFunc<*mut A> for PtrMut {
+impl<A> RevFunc<*mut A> for PtrMut
+where
+    A: ?Sized,
+{
     type Arg = A;
 }
 
-impl<A: ?Sized> HasFunc for *mut A {
+impl<A> HasFunc for *mut A
+where
+    A: ?Sized,
+{
     type Arg = A;
     type Func = PtrMut;
 }
@@ -184,15 +243,24 @@ impl<A: ?Sized> HasFunc for *mut A {
 #[derive(Clone, Copy)]
 pub(crate) struct NonNull;
 
-impl<A: ?Sized> Func<A> for NonNull {
+impl<A> Func<A> for NonNull
+where
+    A: ?Sized,
+{
     type Output = ptr::NonNull<A>;
 }
 
-impl<A: ?Sized> RevFunc<ptr::NonNull<A>> for NonNull {
+impl<A> RevFunc<ptr::NonNull<A>> for NonNull
+where
+    A: ?Sized,
+{
     type Arg = A;
 }
 
-impl<A: ?Sized> HasFunc for ptr::NonNull<A> {
+impl<A> HasFunc for ptr::NonNull<A>
+where
+    A: ?Sized,
+{
     type Arg = A;
     type Func = NonNull;
 }
@@ -211,15 +279,24 @@ impl<'a> Ref<'a> {
     }
 }
 
-impl<'a, A: ?Sized + 'a> Func<A> for Ref<'a> {
+impl<'a, A> Func<A> for Ref<'a>
+where
+    A: ?Sized + 'a,
+{
     type Output = &'a A;
 }
 
-impl<'a, A: ?Sized + 'a> RevFunc<&'a A> for Ref<'a> {
+impl<'a, A> RevFunc<&'a A> for Ref<'a>
+where
+    A: ?Sized + 'a,
+{
     type Arg = A;
 }
 
-impl<'a, A: ?Sized + 'a> HasFunc for &'a A {
+impl<'a, A> HasFunc for &'a A
+where
+    A: ?Sized + 'a,
+{
     type Arg = A;
     type Func = Ref<'a>;
 }
@@ -238,15 +315,24 @@ impl<'a> RefMut<'a> {
     }
 }
 
-impl<'a, A: ?Sized + 'a> Func<A> for RefMut<'a> {
+impl<'a, A> Func<A> for RefMut<'a>
+where
+    A: ?Sized + 'a,
+{
     type Output = &'a mut A;
 }
 
-impl<'a, A: ?Sized + 'a> RevFunc<&'a mut A> for RefMut<'a> {
+impl<'a, A> RevFunc<&'a mut A> for RefMut<'a>
+where
+    A: ?Sized + 'a,
+{
     type Arg = A;
 }
 
-impl<'a, A: ?Sized + 'a> HasFunc for &'a mut A {
+impl<'a, A> HasFunc for &'a mut A
+where
+    A: ?Sized + 'a,
+{
     type Arg = A;
     type Func = RefMut<'a>;
 }
@@ -306,15 +392,24 @@ impl<T, E> HasFunc for Result<T, E> {
 #[derive(Clone, Copy)]
 pub(crate) struct NoDrop;
 
-impl<A: ?Sized> Func<A> for NoDrop {
+impl<A> Func<A> for NoDrop
+where
+    A: ?Sized,
+{
     type Output = mem::NoDrop<A>;
 }
 
-impl<A: ?Sized> RevFunc<mem::NoDrop<A>> for NoDrop {
+impl<A> RevFunc<mem::NoDrop<A>> for NoDrop
+where
+    A: ?Sized,
+{
     type Arg = A;
 }
 
-impl<A: ?Sized> HasFunc for mem::NoDrop<A> {
+impl<A> HasFunc for mem::NoDrop<A>
+where
+    A: ?Sized,
+{
     type Arg = A;
     type Func = NoDrop;
 }
@@ -324,17 +419,26 @@ impl<A: ?Sized> HasFunc for mem::NoDrop<A> {
 pub(crate) struct Box;
 
 #[cfg(feature = "alloc")]
-impl<A: ?Sized> Func<A> for Box {
+impl<A> Func<A> for Box
+where
+    A: ?Sized,
+{
     type Output = alloc::boxed::Box<A>;
 }
 
 #[cfg(feature = "alloc")]
-impl<A: ?Sized> RevFunc<alloc::boxed::Box<A>> for Box {
+impl<A> RevFunc<alloc::boxed::Box<A>> for Box
+where
+    A: ?Sized,
+{
     type Arg = A;
 }
 
 #[cfg(feature = "alloc")]
-impl<A: ?Sized> HasFunc for alloc::boxed::Box<A> {
+impl<A> HasFunc for alloc::boxed::Box<A>
+where
+    A: ?Sized,
+{
     type Arg = A;
     type Func = Box;
 }
@@ -344,17 +448,26 @@ impl<A: ?Sized> HasFunc for alloc::boxed::Box<A> {
 pub(crate) struct Rc;
 
 #[cfg(feature = "alloc")]
-impl<A: ?Sized> Func<A> for Rc {
+impl<A> Func<A> for Rc
+where
+    A: ?Sized,
+{
     type Output = alloc::rc::Rc<A>;
 }
 
 #[cfg(feature = "alloc")]
-impl<A: ?Sized> RevFunc<alloc::rc::Rc<A>> for Rc {
+impl<A> RevFunc<alloc::rc::Rc<A>> for Rc
+where
+    A: ?Sized,
+{
     type Arg = A;
 }
 
 #[cfg(feature = "alloc")]
-impl<A: ?Sized> HasFunc for alloc::rc::Rc<A> {
+impl<A> HasFunc for alloc::rc::Rc<A>
+where
+    A: ?Sized,
+{
     type Arg = A;
     type Func = Rc;
 }
@@ -364,17 +477,26 @@ impl<A: ?Sized> HasFunc for alloc::rc::Rc<A> {
 pub(crate) struct Arc;
 
 #[cfg(all(feature = "alloc", target_has_atomic = "ptr"))]
-impl<A: ?Sized> Func<A> for Arc {
+impl<A> Func<A> for Arc
+where
+    A: ?Sized,
+{
     type Output = alloc::sync::Arc<A>;
 }
 
 #[cfg(all(feature = "alloc", target_has_atomic = "ptr"))]
-impl<A: ?Sized> RevFunc<alloc::sync::Arc<A>> for Arc {
+impl<A> RevFunc<alloc::sync::Arc<A>> for Arc
+where
+    A: ?Sized,
+{
     type Arg = A;
 }
 
 #[cfg(all(feature = "alloc", target_has_atomic = "ptr"))]
-impl<A: ?Sized> HasFunc for alloc::sync::Arc<A> {
+impl<A> HasFunc for alloc::sync::Arc<A>
+where
+    A: ?Sized,
+{
     type Arg = A;
     type Func = Arc;
 }

@@ -1,0 +1,11 @@
+target/
+
+# Exclude top-level configs
+!.gitignore
+!.ignore
+!.cargo
+!.rustfmt.toml
+
+# Exclude editor folders
+!.helix/
+!.zed/

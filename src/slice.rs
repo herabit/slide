@@ -1,9 +1,13 @@
-use core::{fmt, ptr::NonNull};
+use core::fmt;
 
 /// Internal implementation details.
 pub(crate) mod private;
 
 /// Marker trait the kinds of slices this crate can work with.
+///
+/// # Safety
+///
+/// ***TODO***
 pub unsafe trait Slice: private::Sealed {
     /// An associated item that details what the underlying items of this
     /// slice, are.
@@ -23,8 +27,21 @@ pub unsafe trait Slice: private::Sealed {
     /// Not all `[Self::Elem]`s may be valid a valid `Self`.
     type Elem: Sized;
 
-    /// An error that occurs when trying to decode this slice from a `[Self::Item]`.
+    /// An error that occurs when trying to decode this slice from a `[Self::Elem]`.
     type DecodeError: Sized + fmt::Debug + fmt::Display;
+
+    /// An error that occurs when trying to get the underlying `[Self::Elem]`
+    /// from this slice.
+    type ElemError: Sized + fmt::Debug + fmt::Display;
+
+    /// An error that occurs when trying to split a slice.
+    ///
+    /// This type does not deal with out-of-bounds situations. This instead is used
+    /// for when something is within bounds, but it did not meet some requirement.
+    ///
+    /// Types where this is the case would be [`str`], where you have to split on UTF-8
+    /// character boundaries.
+    type SplitError: Sized + fmt::Debug + fmt::Display;
 
     // A type witness to allow const polymorphism.
     //
@@ -66,3 +83,11 @@ pub unsafe trait AsElems: Slice {}
 /// the `&mut [u8]` in such a way that results in it no longer being UTF-8, resulting in undefined
 /// behavior.
 pub unsafe trait AsElemsMut: AsElems {}
+
+// /// An error that occurs when an index is not a character boundary.
+// #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+// pub struct StrSplitError {
+//     /// The index where we failed to split at.
+//     index: usize,
+//     /// The
+// }

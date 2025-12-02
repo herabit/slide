@@ -13,7 +13,12 @@ mod slice_range;
 pub use slice_range::{SliceRange, SliceRangeError};
 
 /// A marker trait for types that can be used in `const` to create a [`SliceRange`].
+///
+/// # Safety
+///
+/// ***TODO***
 pub unsafe trait SliceBounds: private::Sealed + RangeBounds<usize> {
+    // NOTE: I forgot what this is for... I should figure that out.
     #[doc(hidden)]
     type Inner: SliceBounds + ?Sized;
 
@@ -52,14 +57,20 @@ pub unsafe trait SliceBounds: private::Sealed + RangeBounds<usize> {
 /// Borrow the start and end bounds as a tuple.
 #[inline(always)]
 #[must_use]
-pub const fn as_bounds<B: SliceBounds + ?Sized>(bounds: &B) -> (Bound<&usize>, Bound<&usize>) {
+pub const fn as_bounds<B>(bounds: &B) -> (Bound<&usize>, Bound<&usize>)
+where
+    B: SliceBounds + ?Sized,
+{
     B::KIND.0.as_bounds(bounds)
 }
 
 /// Get the start and end bounds as a tuple.
 #[inline(always)]
 #[must_use]
-pub const fn to_bounds<B: SliceBounds + ?Sized>(bounds: &B) -> (Bound<usize>, Bound<usize>) {
+pub const fn to_bounds<B>(bounds: &B) -> (Bound<usize>, Bound<usize>)
+where
+    B: SliceBounds + ?Sized,
+{
     let (start, end) = as_bounds(bounds);
 
     (bound_copied(start), bound_copied(end))
@@ -68,7 +79,10 @@ pub const fn to_bounds<B: SliceBounds + ?Sized>(bounds: &B) -> (Bound<usize>, Bo
 /// Get the start and end bounds as a tuple, taking ownership of `bounds`.
 #[inline(always)]
 #[must_use]
-pub const fn into_bounds<B: SliceBounds>(bounds: B) -> (Bound<usize>, Bound<usize>) {
+pub const fn into_bounds<B>(bounds: B) -> (Bound<usize>, Bound<usize>)
+where
+    B: SliceBounds,
+{
     // Luckily, all slicebounds don't have a drop implementation
     let bounds = NoDrop::new(bounds);
 
