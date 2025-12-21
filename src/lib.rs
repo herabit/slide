@@ -20,7 +20,7 @@ mod util;
 /// Marker types and traits that are used internally.
 mod marker;
 
-/// Just some helpers for [`str`]s.
+/// Just some helpers for [`prim@str`]s.
 pub mod str;
 
 /// What is a slice? This module seeks to answer that question.
