@@ -30,9 +30,16 @@ pub(crate) mod variance;
 
 /// Marker type that acts as a proof that `Src == Dest`.
 #[repr(transparent)]
-pub(crate) struct TypeEq<Src: ?Sized, Dest: ?Sized>(Invariant<Src>, Invariant<Dest>);
+pub(crate) struct TypeEq<Src, Dest>(Invariant<Src>, Invariant<Dest>)
+where
+    Src: ?Sized,
+    Dest: ?Sized;
 
-impl<Src: ?Sized, Dest: ?Sized> TypeEq<Src, Dest> {
+impl<Src, Dest> TypeEq<Src, Dest>
+where
+    Src: ?Sized,
+    Dest: ?Sized,
+{
     /// Create a proof that `Src == Dest`.
     ///
     /// # Safety
@@ -252,7 +259,10 @@ impl<Src: ?Sized, Dest: ?Sized> TypeEq<Src, Dest> {
     }
 }
 
-impl<Src: ?Sized> TypeEq<Src, Src> {
+impl<Src> TypeEq<Src, Src>
+where
+    Src: ?Sized,
+{
     /// Create a proof that `Src == Src`.
     #[inline(always)]
     #[must_use]

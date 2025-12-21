@@ -61,7 +61,9 @@ pub(crate) const unsafe fn transmute<A, B>(a: A) -> B {
 /// Just a wrapper for [`ManuallyDrop`] that has better `const` ergonomics.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 #[repr(transparent)]
-pub(crate) struct NoDrop<T: ?Sized>(ManuallyDrop<T>);
+pub(crate) struct NoDrop<T>(ManuallyDrop<T>)
+where
+    T: ?Sized;
 
 impl<T> NoDrop<T>
 where

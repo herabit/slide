@@ -4,6 +4,72 @@ use core::{convert::Infallible, fmt, str::Utf8Error};
 /// Internal implementation details.
 pub(crate) mod private;
 
+macro_rules! methods {
+    (
+        $(
+            $(#[doc = $doc:expr])+
+            $(#[$meta:meta])*
+            $vis:vis
+                $(const $($const:lifetime)?)?
+                $(unsafe $($unsafe:lifetime)?)?
+                fn $func:ident $([$($gen:tt)*])? ($($args:tt)*)
+                $(-> $ret:ty)?
+                $(where ($($where:tt)*))?
+                $body:block
+        )*
+    ) => {
+        macro_rules! docs {
+            $(($func) => {
+                ::core::concat!(
+                    $($doc, "\n",)+
+                )
+            };)*
+        }
+
+        #[allow(unused_imports)]
+        pub(crate) use docs;
+
+        $(
+            $(#[doc = $doc])+
+            $(#[$meta])*
+            $vis
+            $(const $($const)?)?
+            $(unsafe $($unsafe)?)?
+            fn $func $(< $($gen)* >)? ($($args)*)
+            $(-> $ret)?
+            $(where $($where)* )?
+            $body
+        )*
+    };
+}
+
+#[allow(unused_imports)]
+pub(crate) use methods;
+
+methods! {
+    /// Returns the length of the provided slice, in elements.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub const fn len[S](slice: *const S) -> usize
+    where (
+        S: Slice + ?Sized,
+    ) {
+        S::KIND.0.len(slice)
+    }
+
+    /// Returns whether the provided slice is empty.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub const fn is_empty[S](slice: *const S) -> bool
+    where (
+        S: Slice + ?Sized,
+    ) {
+        S::KIND.0.is_empty(slice)
+    }
+}
+
 /// Trait for the various slice types we support.
 ///
 /// # Safety
@@ -27,7 +93,7 @@ pub unsafe trait Slice: private::Sealed {
     /// While all `Self`s contain a `[Elem]`, not all `[Elem]`s are valid as a `Self`.
     type Elem: Sized;
 
-    /// An error that is returned when trying to create a `Self` from some `[Elem]`.
+    /// An error that is returned when trying to create a `Self` from some `[Elem]`.``
     type FromElemsError: Sized + fmt::Debug + fmt::Display;
 
     /// An error that is returned when trying to safely get a `[Elem]` from some `Self`.
@@ -41,14 +107,17 @@ pub unsafe trait Slice: private::Sealed {
     // Type witness.
     #[doc(hidden)]
     const KIND: SliceKind<Self>;
+
+    #[doc = docs!(len)]
+    #[track_caller]
+    #[must_use]
+    fn len(&self) -> usize;
+
+    #[doc = docs!(is_empty)]
+    #[track_caller]
+    #[must_use]
+    fn is_empty(&self) -> bool;
 }
-
-pub unsafe trait AsElems: Slice {}
-pub unsafe trait AsElemsMut: AsElems {}
-
-unsafe impl<S> AsElems for S where S: Slice<AsElemsError = Infallible> + ?Sized {}
-unsafe impl<S> AsElemsMut for S where S: Slice<AsElemsError = Infallible> + ?Sized {}
-
 macro_rules! get {
     ($a:ty $(|)?) => {
         $a
@@ -86,6 +155,10 @@ macro_rules! slice {
         }
     )+) => {
         $(
+            $(#[$module_attr])*
+            $(#[cfg($($cfg)*)])*
+            mod $module;
+
             $(#[cfg($($cfg)*)])*
             impl $(< $($gen)* >)? private::Sealed for $slice {}
 
@@ -111,12 +184,20 @@ macro_rules! slice {
                     as_elems_error: TypeEq::new(),
                     split_error: TypeEq::new(),
                 });
+
+                #[doc = $module::docs!(len)]
+                #[inline(always)]
+                #[track_caller]
+                fn len(&self) -> usize {
+                    len(self)
+                }
+
+                #[doc = $module::docs!(is_empty)]
+                #[inline(always)]
+                fn is_empty(&self) -> bool {
+                    is_empty(self)
+                }
             }
-
-
-            $(#[$module_attr])*
-            $(#[cfg($($cfg)*)])*
-            mod $module;
         )+
 
         #[allow(dead_code)]
@@ -150,6 +231,35 @@ macro_rules! slice {
         where
             S: Slice + ?Sized,
         {}
+
+        impl<S> SliceWit<S>
+        where
+            S: Slice + ?Sized,
+        {
+            #[inline(always)]
+            #[must_use]
+            #[track_caller]
+            pub const fn len(self, s: *const S) -> usize {
+                match self {
+                    $(
+                        $(#[cfg($($cfg)*)])*
+                        Self::$variant { slice, .. } => $module::len(slice.coerce_ptr(s)),
+                    )*
+                }
+            }
+
+            #[inline(always)]
+            #[must_use]
+            #[track_caller]
+            pub const fn is_empty(self, s: *const S) -> bool {
+                match self {
+                    $(
+                        $(#[cfg($($cfg)*)])*
+                        Self::$variant { slice, .. } => $module::is_empty(slice.coerce_ptr(s)),
+                    )*
+                }
+            }
+        }
     };
 }
 
@@ -176,5 +286,3 @@ slice! {
         type Module = str;
     }
 }
-
-unsafe impl AsElems for str {}

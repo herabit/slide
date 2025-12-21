@@ -69,8 +69,7 @@ macro_rules! define_bounds {
         #[repr(transparent)]
         pub struct BoundsKind<B>(pub(crate) BoundsWit<B>)
         where
-            B: SliceBounds + ?Sized,
-        ;
+            B: SliceBounds + ?Sized;
 
         impl<B> Clone for BoundsKind<B>
         where

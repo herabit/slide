@@ -16,6 +16,8 @@ pub const fn is_utf8_char_boundary(byte: u8) -> bool {
 }
 
 /// Why? Why not? Mainly just to flex my stupidity when, in reality, it does not matter like, at all.
+///
+/// See [`str::floor_char_boundary`] for details.
 #[inline(always)]
 #[must_use]
 pub const fn floor_char_boundary(s: &str, index: usize) -> usize {
@@ -27,7 +29,6 @@ pub const fn floor_char_boundary(s: &str, index: usize) -> usize {
         //
         //       We use the range `index.saturating_sub(3)..index + 1` in the code, but they're equivalent. The
         //       inclusive range just better descrives what we're doing.
-
         let range = index.saturating_sub(3)..index.checked_add(1).unwrap();
         let Range { start, mut end } = {
             // SAFETY: We know that `index.saturating_sub(3) <= index`, and that `index < s.len()`.
@@ -85,20 +86,34 @@ pub const fn floor_char_boundary(s: &str, index: usize) -> usize {
     new_index
 }
 
+// #[inline(always)]
+// #[must_use]
 // #[unsafe(no_mangle)]
-// fn _floor_char_boundary_pseudocode(s: &str, index: usize) -> usize {
-//     if index >= s.len() {
+// #[allow(clippy::let_and_return)]
+// pub const fn ceil_char_boundary(s: &str, index: usize) -> usize {
+//     let new_index = if index >= s.len() {
 //         s.len()
 //     } else {
-//         let lower_bound = index.saturating_sub(3);
+//         let max_len = match s.len().checked_sub(index).unwrap() {
+//             0 => unreachable!(),
+//             len @ 1..4 => len,
+//             4.. => 4,
+//         };
 
-//         let new_index = s.as_bytes()[lower_bound..=index]
-//             .iter()
-//             .rposition(|b| is_utf8_char_boundary(*b))
-//             .unwrap();
+//         // SAFETY: We never increase the size of the maximum length more than `s.len()`.
+//         unsafe {
+//             assert_unchecked!(
+//                 index.checked_add(max_len).is_some(),
+//                 "`max_len` is out of bounds",
+//             )
+//         };
+//         // SAFETY: `max_len <= s.len() - index` is always true.
+//         unsafe { assert_unchecked!(index + max_len <= s.len(), "`max_len` is out of bounds") };
 
-//         // SAFETY: we know that the character boundary will be within four bytes
+//         let range = index..index.checked_add(max_len).unwrap();
 
-//         lower_bound + new_index
-//     }
+//         range.end
+//     };
+
+//     new_index
 // }
