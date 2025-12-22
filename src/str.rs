@@ -86,6 +86,15 @@ pub const fn floor_char_boundary(s: &str, index: usize) -> usize {
     new_index
 }
 
+#[inline(always)]
+#[must_use]
+#[allow(clippy::let_and_return)]
+pub const fn ceil_char_boundary(s: &str, index: usize) -> usize {
+    let new_index = if index >= s.len() { s.len() } else { todo!() };
+
+    new_index
+}
+
 // #[inline(always)]
 // #[must_use]
 // #[unsafe(no_mangle)]
