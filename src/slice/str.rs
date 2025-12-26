@@ -1,8 +1,10 @@
 use core::{
-    mem,
+    fmt, mem,
     ptr::{self, NonNull},
     slice,
 };
+
+use crate::macros::unreachable_unchecked;
 
 methods! {
     /// Returns the provided string's length, in bytes.
@@ -75,3 +77,111 @@ methods! {
         unsafe { str::from_utf8_unchecked_mut(slice::from_raw_parts_mut(data, len)) }
     }
 }
+
+/// An error for attempting to get the inner elements of a [`prim@str`].
+///
+/// This only affects mutable borrows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[non_exhaustive]
+pub enum StrElemsError {
+    /// It is not safe to get a mutable reference to the inner `[u8]` for a [`prim@str`].
+    UnsafeToMutablyBorrow,
+}
+
+impl StrElemsError {
+    /// Panics with an error message corresponding to `self`.
+    #[inline(always)]
+    #[track_caller]
+    pub(crate) const fn handle(&self) -> ! {
+        match self {
+            StrElemsError::UnsafeToMutablyBorrow => {
+                panic!("it is unsafe to mutably borrow the underlying bytes of a string")
+            }
+        }
+    }
+
+    /// Marks the code path that created this error as impossible.
+    ///
+    /// # Safety
+    ///
+    /// The caller ***must ensure*** that this is impossible to reach.
+    /// Otherwise, undefined behavior will be invoked.
+    #[inline(always)]
+    #[track_caller]
+    pub(crate) const unsafe fn handle_unchecked(&self) -> ! {
+        match self {
+            StrElemsError::UnsafeToMutablyBorrow => unsafe {
+                unreachable_unchecked!(
+                    "it is unsafe to mutably borrow the underlying bytes of a string"
+                )
+            },
+        }
+    }
+}
+
+impl fmt::Display for StrElemsError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            StrElemsError::UnsafeToMutablyBorrow => core::write!(
+                f,
+                "it is unsafe to mutably borrow the underlying bytes of a string"
+            ),
+        }
+    }
+}
+
+impl core::error::Error for StrElemsError {}
+
+/// An error that occurs when trying to split a [`prim@str`].
+///
+/// This does *not* include out-of-bounds errors.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[non_exhaustive]
+pub enum StrSplitError {
+    /// The byte at `index` was not a valid UTF-8 character boundary.
+    InvalidCharBoundary { index: usize },
+}
+
+impl StrSplitError {
+    /// Panics with an error message corresponding to `self`.
+    #[inline(always)]
+    #[track_caller]
+    pub(crate) const fn handle(&self) -> ! {
+        match self {
+            StrSplitError::InvalidCharBoundary { .. } => {
+                panic!("the byte at `index` is not a valid UTF-8 character boundary")
+            }
+        }
+    }
+
+    /// Marks the code path that created this error as impossible.
+    ///
+    /// # Safety
+    ///
+    /// The caller ***must ensure*** that this is impossible to reach.
+    /// Otherwise, undefined behavior will be invoked.
+    #[inline(always)]
+    #[track_caller]
+    pub(crate) const unsafe fn handle_unchecked(&self) -> ! {
+        match self {
+            StrSplitError::InvalidCharBoundary { .. } => unsafe {
+                unreachable_unchecked!(
+                    "the byte at `index` is not a valid UTF-8 character boundary"
+                )
+            },
+        }
+    }
+}
+
+impl fmt::Display for StrSplitError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            StrSplitError::InvalidCharBoundary { index } => core::write!(
+                f,
+                "the byte at index {index} is not a valid UTF-8 character boundary"
+            ),
+        }
+    }
+}
+
+impl core::error::Error for StrSplitError {}

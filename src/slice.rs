@@ -1,11 +1,12 @@
 #![allow(clippy::empty_docs)]
 
 use crate::{marker::TypeEq, slice::private::SliceKind};
-use core::{convert::Infallible, fmt, ptr::NonNull, str::Utf8Error};
+use core::{cmp::Ordering, convert::Infallible, fmt, hash, mem, ptr::NonNull, str::Utf8Error};
 
 /// Internal implementation details.
 pub(crate) mod private;
 
+/// Extracts documentation and creates a string from it.
 macro_rules! extract_docs {
     () => { "" };
     (#[doc = $doc:expr] $($rest:tt)*) => {
@@ -21,6 +22,8 @@ macro_rules! extract_docs {
 #[allow(unused_imports)]
 pub(crate) use extract_docs;
 
+/// Generates a set of functions (usually methods, hence the name) with an associated `docs` macro that hands out
+/// a string containing a given function's documentation.
 macro_rules! methods {
     (
         $(
@@ -173,15 +176,15 @@ pub unsafe trait Slice: private::Sealed {
     type Elem: Sized;
 
     /// An error that is returned when trying to create a `Self` from some `[Elem]`.``
-    type FromElemsError: Sized + fmt::Debug + fmt::Display;
+    type FromElemsErr: Sized + fmt::Debug + fmt::Display;
 
     /// An error that is returned when trying to safely get a `[Elem]` from some `Self`.
-    type AsElemsError: Sized + fmt::Debug + fmt::Display;
+    type AsElemsErr: Sized + fmt::Debug + fmt::Display;
 
     /// An error that may occur when attempting to split this slice into a subslice.
     ///
     /// This does not include out of bounds errors.
-    type SplitError: Sized + fmt::Debug + fmt::Display;
+    type SplitErr: Sized + fmt::Debug + fmt::Display;
 
     // Type witness.
     #[doc(hidden)]
@@ -222,6 +225,394 @@ pub unsafe trait Slice: private::Sealed {
     #[must_use]
     unsafe fn from_raw_parts_mut<'a>(data: *mut Self::Elem, len: usize) -> &'a mut Self;
 }
+
+/// The error type that is returned when creating
+/// a slice from its component elements.
+///
+/// ***TODO***
+pub struct FromElemsError<S>(pub S::FromElemsErr)
+where
+    S: Slice + ?Sized;
+
+impl<S> fmt::Debug for FromElemsError<S>
+where
+    S: Slice + ?Sized,
+{
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl<S> fmt::Display for FromElemsError<S>
+where
+    S: Slice + ?Sized,
+{
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl<S> Default for FromElemsError<S>
+where
+    S: Slice + ?Sized,
+    S::FromElemsErr: Default,
+{
+    #[inline]
+    fn default() -> Self {
+        Self(Default::default())
+    }
+}
+
+impl<S> Clone for FromElemsError<S>
+where
+    S: Slice + ?Sized,
+    S::FromElemsErr: Clone,
+{
+    #[inline]
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+
+    #[inline]
+    fn clone_from(&mut self, source: &Self) {
+        self.0.clone_from(&source.0);
+    }
+}
+
+impl<S> Copy for FromElemsError<S>
+where
+    S: Slice + ?Sized,
+    S::FromElemsErr: Copy,
+{
+}
+
+impl<S> PartialEq for FromElemsError<S>
+where
+    S: Slice + ?Sized,
+    S::FromElemsErr: PartialEq,
+{
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl<S> Eq for FromElemsError<S>
+where
+    S: Slice + ?Sized,
+    S::FromElemsErr: Eq,
+{
+}
+
+impl<S> PartialOrd for FromElemsError<S>
+where
+    S: Slice + ?Sized,
+    S::FromElemsErr: PartialOrd,
+{
+    #[inline]
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.0.partial_cmp(&other.0)
+    }
+}
+
+impl<S> Ord for FromElemsError<S>
+where
+    S: Slice + ?Sized,
+    S::FromElemsErr: Ord,
+{
+    #[inline]
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.0.cmp(&other.0)
+    }
+}
+
+impl<S> hash::Hash for FromElemsError<S>
+where
+    S: Slice + ?Sized,
+    S::FromElemsErr: hash::Hash,
+{
+    #[inline]
+    fn hash<H: hash::Hasher>(&self, state: &mut H) {
+        self.0.hash(state);
+    }
+}
+
+impl<S> core::error::Error for FromElemsError<S>
+where
+    S: Slice + ?Sized,
+    S::FromElemsErr: core::error::Error,
+{
+    #[inline]
+    #[allow(deprecated)]
+    fn description(&self) -> &str {
+        self.0.description()
+    }
+}
+
+/// The error type that is returned when trying to get a slice's
+/// component elements.
+///
+/// ***TODO***
+pub struct AsElemsError<S>(pub S::AsElemsErr)
+where
+    S: Slice + ?Sized;
+
+impl<S> fmt::Debug for AsElemsError<S>
+where
+    S: Slice + ?Sized,
+{
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl<S> fmt::Display for AsElemsError<S>
+where
+    S: Slice + ?Sized,
+{
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl<S> Default for AsElemsError<S>
+where
+    S: Slice + ?Sized,
+    S::AsElemsErr: Default,
+{
+    #[inline]
+    fn default() -> Self {
+        Self(Default::default())
+    }
+}
+
+impl<S> PartialEq for AsElemsError<S>
+where
+    S: Slice + ?Sized,
+    S::AsElemsErr: PartialEq,
+{
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl<S> Eq for AsElemsError<S>
+where
+    S: Slice + ?Sized,
+    S::AsElemsErr: Eq,
+{
+}
+
+impl<S> PartialOrd for AsElemsError<S>
+where
+    S: Slice + ?Sized,
+    S::AsElemsErr: PartialOrd,
+{
+    #[inline]
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.0.partial_cmp(&other.0)
+    }
+}
+
+impl<S> Ord for AsElemsError<S>
+where
+    S: Slice + ?Sized,
+    S::AsElemsErr: Ord,
+{
+    #[inline]
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.0.cmp(&other.0)
+    }
+}
+
+impl<S> hash::Hash for AsElemsError<S>
+where
+    S: Slice + ?Sized,
+    S::AsElemsErr: hash::Hash,
+{
+    #[inline]
+    fn hash<H: hash::Hasher>(&self, state: &mut H) {
+        self.0.hash(state);
+    }
+}
+
+impl<S> core::error::Error for AsElemsError<S>
+where
+    S: Slice + ?Sized,
+    S::AsElemsErr: core::error::Error,
+{
+    #[inline]
+    #[allow(deprecated)]
+    fn description(&self) -> &str {
+        self.0.description()
+    }
+}
+
+/// The error type that is returned when attempting to split a
+/// slice.
+///
+/// ***TODO***
+pub enum SplitError<S>
+where
+    S: Slice + ?Sized,
+{
+    /// Cannot split at the specified index, it is out of bounds.
+    OutOfBounds {
+        /// The index that is out of bounds.
+        index: usize,
+        /// The length of the slice.
+        len: usize,
+    },
+    /// Some other error occurred.
+    Other(S::SplitErr),
+}
+
+impl<S> fmt::Debug for SplitError<S>
+where
+    S: Slice + ?Sized,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::OutOfBounds { index, len } => f
+                .debug_struct("OutOfBounds")
+                .field("index", index)
+                .field("len", len)
+                .finish(),
+            Self::Other(other) => f.debug_tuple("Other").field(other).finish(),
+        }
+    }
+}
+
+impl<S> fmt::Display for SplitError<S>
+where
+    S: Slice + ?Sized,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            SplitError::OutOfBounds { index, len } => {
+                core::write!(f, "index is out of bounds: `{index} >= {len}`")
+            }
+            SplitError::Other(other) => other.fmt(f),
+        }
+    }
+}
+
+impl<S> PartialEq for SplitError<S>
+where
+    S: Slice + ?Sized,
+    S::SplitErr: PartialEq,
+{
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (
+                Self::OutOfBounds {
+                    index: l_index,
+                    len: l_len,
+                },
+                Self::OutOfBounds {
+                    index: r_index,
+                    len: r_len,
+                },
+            ) => l_index == r_index && l_len == r_len,
+            (Self::Other(l), Self::Other(r)) => l == r,
+            _ => false,
+        }
+    }
+}
+
+impl<S> Eq for SplitError<S>
+where
+    S: Slice + ?Sized,
+    S::SplitErr: Eq,
+{
+}
+
+impl<S> PartialOrd for SplitError<S>
+where
+    S: Slice + ?Sized,
+    S::SplitErr: PartialOrd,
+{
+    #[inline]
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        match (self, other) {
+            (
+                SplitError::OutOfBounds {
+                    index: l_index,
+                    len: l_len,
+                },
+                SplitError::OutOfBounds {
+                    index: r_index,
+                    len: r_len,
+                },
+            ) => Some({
+                let index = l_index.cmp(r_index);
+                let len = l_len.cmp(r_len);
+
+                index.then(len)
+            }),
+            (SplitError::Other(l), SplitError::Other(r)) => l.partial_cmp(r),
+            (SplitError::OutOfBounds { .. }, SplitError::Other(_)) => Some(Ordering::Greater),
+            (SplitError::Other(_), SplitError::OutOfBounds { .. }) => Some(Ordering::Less),
+        }
+    }
+}
+
+impl<S> Ord for SplitError<S>
+where
+    S: Slice + ?Sized,
+    S::SplitErr: Ord,
+{
+    #[inline]
+    fn cmp(&self, other: &Self) -> Ordering {
+        match (self, other) {
+            (
+                SplitError::OutOfBounds {
+                    index: l_index,
+                    len: l_len,
+                },
+                SplitError::OutOfBounds {
+                    index: r_index,
+                    len: r_len,
+                },
+            ) => {
+                let index = l_index.cmp(r_index);
+                let len = l_len.cmp(r_len);
+
+                index.then(len)
+            }
+            (SplitError::Other(l), SplitError::Other(r)) => l.cmp(r),
+            (SplitError::OutOfBounds { .. }, SplitError::Other(_)) => Ordering::Greater,
+            (SplitError::Other(_), SplitError::OutOfBounds { .. }) => Ordering::Less,
+        }
+    }
+}
+
+impl<S> hash::Hash for SplitError<S>
+where
+    S: Slice + ?Sized,
+    S::SplitErr: hash::Hash,
+{
+    #[inline]
+    fn hash<H: hash::Hasher>(&self, state: &mut H) {
+        mem::discriminant(self).hash(state);
+
+        match self {
+            SplitError::OutOfBounds { index, len } => {
+                index.hash(state);
+                len.hash(state);
+            }
+            SplitError::Other(other) => other.hash(state),
+        }
+    }
+}
+
+/// Gets a type or it's alternative, preferring the alternative.
 macro_rules! get {
     ($a:ty $(|)?) => {
         $a
@@ -232,6 +623,7 @@ macro_rules! get {
     };
 }
 
+/// Defines the various slice implementations.
 macro_rules! slice {
     ($(
         $(#[cfg($($cfg:tt)*)])*
@@ -243,13 +635,13 @@ macro_rules! slice {
             type Elem = $elem:ty $(| $elem_override:ty)? $(|)?;
 
             $(#[$from_elems_attr:meta])*
-            type FromElemsError = $from_elems:ty $(| $from_elems_override:ty)? $(|)?;
+            type FromElemsErr = $from_elems:ty $(| $from_elems_override:ty)? $(|)?;
 
             $(#[$as_elems_attr:meta])*
-            type AsElemsError = $as_elems:ty $(| $as_elems_override:ty)? $(|)?;
+            type AsElemsErr = $as_elems:ty $(| $as_elems_override:ty)? $(|)?;
 
             $(#[$split_attr:meta])*
-            type SplitError = $split:ty $(| $split_override:ty)? $(|)?;
+            type SplitErr = $split:ty $(| $split_override:ty)? $(|)?;
 
             $(#[$variant_attr:meta])*
             type Variant = $variant:ident;
@@ -273,13 +665,13 @@ macro_rules! slice {
                 type Elem = $elem;
 
                 $(#[$from_elems_attr])*
-                type FromElemsError = $from_elems;
+                type FromElemsErr = $from_elems;
 
                 $(#[$as_elems_attr])*
-                type AsElemsError = $as_elems;
+                type AsElemsErr = $as_elems;
 
                 $(#[$split_attr])*
-                type SplitError = $split;
+                type SplitErr = $split;
 
                 const KIND: SliceKind<Self> = SliceKind(SliceWit::$variant {
                     slice: TypeEq::new(),
@@ -352,9 +744,9 @@ macro_rules! slice {
                 $variant {
                     slice: TypeEq<S, get!($slice | $($slice_override)?)>,
                     elem: TypeEq<S::Elem, get!($elem | $($elem_override)?)>,
-                    from_elems_error: TypeEq<S::FromElemsError, get!($from_elems | $($from_elems_override)?)>,
-                    as_elems_error: TypeEq<S::AsElemsError, get!($as_elems | $($as_elems_override)?)>,
-                    split_error: TypeEq<S::SplitError, get!($split | $($split_override)?)>,
+                    from_elems_error: TypeEq<S::FromElemsErr, get!($from_elems | $($from_elems_override)?)>,
+                    as_elems_error: TypeEq<S::AsElemsErr, get!($as_elems | $($as_elems_override)?)>,
+                    split_error: TypeEq<S::SplitErr, get!($split | $($split_override)?)>,
                 },
             )+
         }
@@ -385,7 +777,7 @@ macro_rules! slice {
                 match self {
                     $(
                         $(#[cfg($($cfg)*)])*
-                        Self::$variant { slice, .. } => $module::len(slice.coerce_ptr(s)),
+                        Self::$variant { slice, .. } => self::$module::len(slice.coerce_ptr(s)),
                     )*
                 }
             }
@@ -397,7 +789,7 @@ macro_rules! slice {
                 match self {
                     $(
                         $(#[cfg($($cfg)*)])*
-                        Self::$variant { slice, .. } => $module::is_empty(slice.coerce_ptr(s)),
+                        Self::$variant { slice, .. } => self::$module::is_empty(slice.coerce_ptr(s)),
                     )*
                 }
             }
@@ -410,7 +802,7 @@ macro_rules! slice {
                     $(
                         $(#[cfg($($cfg)*)])*
                         Self::$variant { slice, elem, .. } => slice.uncoerce_ptr(
-                            $module::raw_slice(elem.coerce_ptr(data), len),
+                            self::$module::raw_slice(elem.coerce_ptr(data), len),
                         ),
                     )*
                 }
@@ -424,7 +816,7 @@ macro_rules! slice {
                     $(
                         $(#[cfg($($cfg)*)])*
                         Self::$variant { slice, elem, .. } => slice.uncoerce_ptr_mut(
-                            $module::raw_slice_mut(elem.coerce_ptr_mut(data), len)
+                            self::$module::raw_slice_mut(elem.coerce_ptr_mut(data), len)
                         ),
                     )*
                 }
@@ -438,7 +830,7 @@ macro_rules! slice {
                     $(
                         $(#[cfg($($cfg)*)])*
                         Self::$variant { slice, elem, .. } => slice.uncoerce_nonnull(
-                            $module::raw_slice_nonnull(elem.coerce_nonnull(data), len)
+                            self::$module::raw_slice_nonnull(elem.coerce_nonnull(data), len)
                         ),
                     )*
                 }
@@ -452,7 +844,7 @@ macro_rules! slice {
                     $(
                         $(#[cfg($($cfg)*)])*
                         Self::$variant { slice, elem, .. } => slice.uncoerce_ref(unsafe {
-                            $module::from_raw_parts(elem.coerce_ptr(data), len)
+                            self::$module::from_raw_parts(elem.coerce_ptr(data), len)
                         }),
                     )*
                 }
@@ -466,7 +858,7 @@ macro_rules! slice {
                     $(
                         $(#[cfg($($cfg)*)])*
                         Self::$variant { slice, elem, .. } => slice.uncoerce_mut(unsafe {
-                            $module::from_raw_parts_mut(elem.coerce_ptr_mut(data), len)
+                            self::$module::from_raw_parts_mut(elem.coerce_ptr_mut(data), len)
                         }),
                     )*
                 }
@@ -479,9 +871,9 @@ slice! {
     unsafe impl(T) Slice for [T] | [S::Elem]  {
         type Elem = T | S::Elem;
 
-        type FromElemsError = Infallible;
-        type AsElemsError = Infallible;
-        type SplitError = Infallible;
+        type FromElemsErr = Infallible;
+        type AsElemsErr = Infallible;
+        type SplitErr = Infallible;
 
         type Variant = Slice;
         type Module = slice;
@@ -490,11 +882,14 @@ slice! {
     unsafe impl Slice for str {
         type Elem = u8;
 
-        type FromElemsError = Utf8Error;
-        type AsElemsError = &'static str;
-        type SplitError = &'static str;
+        type FromElemsErr = Utf8Error;
+        type AsElemsErr = &'static str;
+        type SplitErr = &'static str;
 
         type Variant = Str;
         type Module = str;
     }
 }
+
+#[doc(inline)]
+pub use self::str::*;

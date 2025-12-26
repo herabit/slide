@@ -8,6 +8,7 @@ use core::ops::{self, Bound};
 /// Trait to seal what types we're considering to be ranges.
 pub trait Sealed {}
 
+/// Defines the various slice bound types and their implementations.
 macro_rules! define_bounds {
     ($(
         $(#[doc = $doc:tt])*

@@ -23,7 +23,9 @@ use super::{SliceBounds, as_bounds, into_bounds, to_bounds};
 /// and that for it to be false is undefined behavior.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SliceRange {
+    /// The start of the range.
     start: usize,
+    /// The end of the range (exclusive).
     end: usize,
 }
 

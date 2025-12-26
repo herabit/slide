@@ -5,6 +5,7 @@ use crate::slice::{Slice, SliceWit};
 /// Trait for sealing slice types.
 pub trait Sealed {}
 
+/// A public but internal implementation detail for working with slice types.
 #[repr(transparent)]
 pub struct SliceKind<S>(pub(crate) SliceWit<S>)
 where

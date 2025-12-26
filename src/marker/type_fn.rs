@@ -19,6 +19,7 @@ pub(crate) trait Func<Arg>
 where
     Arg: ?Sized,
 {
+    /// The output of the type level function given some `Arg`.
     type Output: ?Sized;
 }
 
@@ -35,6 +36,8 @@ pub(crate) trait RevFunc<Ret>: Func<Self::Arg, Output = Ret>
 where
     Ret: ?Sized,
 {
+    /// The arguments that when given to the type level function,
+    /// returns `Ret` as an output.
     type Arg: ?Sized;
 }
 
@@ -56,6 +59,7 @@ pub(crate) trait InjFunc<Arg>:
 where
     Arg: ?Sized,
 {
+    /// The return value for an injective function.
     type Ret: ?Sized;
 }
 
