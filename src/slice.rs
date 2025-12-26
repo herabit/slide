@@ -927,8 +927,8 @@ slice! {
         type Elem = u8;
 
         type FromElemsErr = Utf8Error;
-        type AsElemsErr = &'static str;
-        type SplitErr = &'static str;
+        type AsElemsErr = StrElemsError;
+        type SplitErr = StrSplitError;
 
         type Variant = Str;
         type Module = str;
