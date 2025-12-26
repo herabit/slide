@@ -472,6 +472,27 @@ where
     Other(S::SplitErr),
 }
 
+impl<S> Clone for SplitError<S>
+where
+    S: Slice + ?Sized,
+    S::SplitErr: Clone,
+{
+    #[inline]
+    fn clone(&self) -> Self {
+        match *self {
+            Self::OutOfBounds { index, len } => Self::OutOfBounds { index, len },
+            Self::Other(ref other) => Self::Other(other.clone()),
+        }
+    }
+}
+
+impl<S> Copy for SplitError<S>
+where
+    S: Slice + ?Sized,
+    S::SplitErr: Copy,
+{
+}
+
 impl<S> fmt::Debug for SplitError<S>
 where
     S: Slice + ?Sized,
