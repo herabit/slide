@@ -2,9 +2,8 @@
 
 use core::{marker::PhantomData, ptr};
 
+use super::variance::Invariant;
 use crate::mem;
-
-use super::variance::Covariant;
 
 /// Marker trait for type-level functions.
 ///
@@ -108,7 +107,7 @@ where
 = <F as RevFunc<R>>::Arg;
 
 /// A type-level function that reverses another.
-pub(crate) struct Rev<F>(Covariant<F>)
+pub(crate) struct Rev<F>(Invariant<F>)
 where
     F: ?Sized;
 
@@ -154,7 +153,7 @@ where
     #[inline(always)]
     #[must_use]
     pub(crate) const fn new() -> Self {
-        Self(Covariant::new())
+        Self(Invariant::new())
     }
 }
 
@@ -272,14 +271,14 @@ where
 /// A type-level function that wraps a given type
 /// in a reference.
 #[derive(Clone, Copy)]
-pub(crate) struct Ref<'a>(Covariant<&'a ()>);
+pub(crate) struct Ref<'a>(Invariant<&'a ()>);
 
 impl<'a> Ref<'a> {
     /// Create a new [`Ref`].
     #[inline(always)]
     #[must_use]
     pub(crate) const fn new() -> Self {
-        Self(Covariant::new())
+        Self(Invariant::new())
     }
 }
 
@@ -308,14 +307,14 @@ where
 /// A type-level function that wraps a given type
 /// in a mutable reference.
 #[derive(Clone, Copy)]
-pub(crate) struct RefMut<'a>(Covariant<&'a mut ()>);
+pub(crate) struct RefMut<'a>(Invariant<&'a mut ()>);
 
 impl<'a> RefMut<'a> {
     /// Create a new [`RefMut`].
     #[inline(always)]
     #[must_use]
     pub(crate) const fn new() -> Self {
-        Self(Covariant::new())
+        Self(Invariant::new())
     }
 }
 
