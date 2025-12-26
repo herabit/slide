@@ -11,6 +11,7 @@ macro_rules! extract_docs {
     (#[doc = $doc:expr] $($rest:tt)*) => {
         ::core::concat!(
             $doc,
+            "\n",
             $crate::slice::extract_docs!($($rest)*),
         )
     };
