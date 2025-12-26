@@ -176,15 +176,15 @@ pub unsafe trait Slice: private::Sealed {
     type Elem: Sized;
 
     /// An error that is returned when trying to create a `Self` from some `[Elem]`.``
-    type FromElemsErr: Sized + fmt::Debug + fmt::Display;
+    type FromElemsErr: 'static + Sized + fmt::Debug + fmt::Display;
 
     /// An error that is returned when trying to safely get a `[Elem]` from some `Self`.
-    type AsElemsErr: Sized + fmt::Debug + fmt::Display;
+    type AsElemsErr: 'static + Sized + fmt::Debug + fmt::Display;
 
     /// An error that may occur when attempting to split this slice into a subslice.
     ///
     /// This does not include out of bounds errors.
-    type SplitErr: Sized + fmt::Debug + fmt::Display;
+    type SplitErr: 'static + Sized + fmt::Debug + fmt::Display;
 
     // Type witness.
     #[doc(hidden)]
@@ -629,6 +629,29 @@ where
                 len.hash(state);
             }
             SplitError::Other(other) => other.hash(state),
+        }
+    }
+}
+
+impl<S> core::error::Error for SplitError<S>
+where
+    S: Slice + ?Sized,
+    S::SplitErr: core::error::Error,
+{
+    #[inline]
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
+        match self {
+            SplitError::OutOfBounds { .. } => None,
+            SplitError::Other(o) => Some(o),
+        }
+    }
+
+    #[allow(deprecated)]
+    #[inline]
+    fn description(&self) -> &str {
+        match self {
+            SplitError::OutOfBounds { .. } => "index is out of bounds: `index >= len`",
+            SplitError::Other(o) => o.description(),
         }
     }
 }
