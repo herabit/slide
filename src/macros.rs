@@ -1,65 +1,83 @@
 #![allow(dead_code, unused_macros, unused_imports)]
 
-/// Macro that tells the compiler that a code path is unreachable, and undefined behavior to reach.
-macro_rules! unreachable_unchecked {
-    ($first:tt $($rest:tt)*) => {{
-        #[cfg(debug_assertions)]
+#[cfg(debug_assertions)]
+#[doc(hidden)]
+#[allow(unreachable_code)]
+macro_rules! _unreachable_unchecked {
+    ($first:tt $(, $($rest:tt)*)?) => {{
         #[allow(unreachable_code)]
         {
             $crate::util::needs_unsafe(
                 ::core::panic!(
                     ::core::concat!(
                         "undefined behavior: ",
-                        $first
-                    )
-
-                    $($rest)*
+                        $first,
+                    ),
+                    $($($rest)*)?
                 )
             )
         }
-
-        #[cfg(not(debug_assertions))]
-        #[allow(unreachable_code)]
-        {
-            let _ = ($first $($rest)*);
-            ::core::hint::unreachable_unchecked()
-        }
     }};
+}
+
+#[cfg(not(debug_assertions))]
+#[doc(hidden)]
+macro_rules! _unreachable_unchecked {
+    ($first:tt $(, $($rest:tt)*)?) => {
+        ::core::hint::unreachable_unchecked()
+    };
+}
+
+pub(crate) use _unreachable_unchecked;
+
+/// Macro that tells the compiler that a code path is unreachable, and undefined behavior to reach.
+macro_rules! unreachable_unchecked {
+    ($first:tt $(, $($rest:tt)*)?) => {
+        $crate::macros::_unreachable_unchecked!($first, $($($rest)*)?)
+    };
 
     () => {
-        $crate::macros::unrechable_unchecked!("unreachable_unchecked must never be reached")
+        $crate::macros::_unreachable_unchecked!("unreachable_unchecked must never be reached")
     };
 }
 
 pub(crate) use unreachable_unchecked;
 
+#[cfg(debug_assertions)]
+#[doc(hidden)]
+macro_rules! _assert_unchecked {
+    ($cond:expr, $first:tt $(, $($rest:tt)*)?) => {
+        $crate::util::needs_unsafe(
+            ::core::assert!(
+                $cond,
+                ::core::concat!(
+                    "undefined behavior: ",
+                    $first,
+                ),
+                $($($rest)*)?
+            ),
+        )
+    };
+}
+
+#[cfg(not(debug_assertions))]
+#[doc(hidden)]
+macro_rules! _assert_unchecked {
+    ($cond:expr, $first:tt $(, $($rest:tt)*)?) => {
+        ::core::hint::assert_unchecked($cond)
+    };
+}
+
+pub(crate) use _assert_unchecked;
+
 /// Macro that tells the compiler that it is undefined behavior for some condition
 /// to be false.
 macro_rules! assert_unchecked {
-    ($cond:expr, $first:tt $($rest:tt)*) => {{
-        #[cfg(debug_assertions)]
-        {
-            $crate::util::needs_unsafe(
-                ::core::assert!(
-                    $cond,
-                    ::core::concat!(
-                        "undefined behavior: ",
-                        $first,
-                    )
-                    $($rest)*
-                )
-            )
-        }
-
-        #[cfg(not(debug_assertions))]
-        {
-            let _ = ($first $($rest)*);
-            ::core::hint::assert_unchecked($cond)
-        }
-    }};
-
+    ($cond:expr, $first:tt $(, $($rest:tt)*)?) => {
+        $crate::macros::_assert_unchecked!($cond, $first, $($($rest)*)?)
+    };
     ($cond:expr $(,)?) => {
-        $crate::macros::assert_unchecked!($cond, "condition is false")
+        $crate::macros::_assert_unchecked!($cond, "condition is false")
     };
 }
 
