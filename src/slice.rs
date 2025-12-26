@@ -23,8 +23,7 @@ pub(crate) use extract_docs;
 macro_rules! methods {
     (
         $(
-            // $(#[doc = $doc:expr])+
-            $(#[$meta:meta])*
+            $(#[$($meta:tt)*])*
             $vis:vis
                 $(const $($const:lifetime)?)?
                 $(unsafe $($unsafe:lifetime)?)?
@@ -36,7 +35,7 @@ macro_rules! methods {
     ) => {
         macro_rules! docs {
             $(($func) => {
-                $crate::slice::extract_docs!($(#[$meta])*)
+                $crate::slice::extract_docs!($(#[$($meta)*])*)
             };)*
         }
 
@@ -44,8 +43,7 @@ macro_rules! methods {
         pub(crate) use docs;
 
         $(
-            // $(#[doc = $doc])+
-            $(#[$meta])*
+            $(#[$($meta)*])*
             $vis
             $(const $($const)?)?
             $(unsafe $($unsafe)?)?
