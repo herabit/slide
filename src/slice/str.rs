@@ -2,6 +2,7 @@ use core::{
     fmt, mem,
     ptr::{self, NonNull},
     slice,
+    str::Utf8Error,
 };
 
 use crate::macros::unreachable_unchecked;
@@ -76,6 +77,77 @@ methods! {
         // SAFETY: The caller ensures this is safe.
         unsafe { str::from_utf8_unchecked_mut(slice::from_raw_parts_mut(data, len)) }
     }
+
+    /// Panics with an error message for the given [`Utf8Error`](::core::str::Utf8Error).
+    #[inline(always)]
+    #[track_caller]
+    pub(crate) const fn handle_from_elems_error(_: Utf8Error) -> ! {
+        panic!("provided string contains invalid UTF-8")
+    }
+
+    /// Marks the code path that produced the given [`Utf8Error`](::core::str::Utf8Error) as impossible.
+    ///
+    /// # Safety
+    ///
+    /// The caller *must* ensure that it is impossible for the given error to have been produced. Failure
+    /// to do so is *undefined behavior* as calling this function makes promises to the compiler that change
+    /// what optimizations are valid.
+    ///
+    /// Proceed with caution.
+    #[inline(always)]
+    #[track_caller]
+    pub(crate) const unsafe fn handle_from_elems_error_unchecked(_: Utf8Error) -> ! {
+        // SAFETY: The caller ensures that this code path is impossible to reach.
+        unsafe { unreachable_unchecked!("provided string contains invalid UTF-8") }
+    }
+
+    /// Panics with an error message for the given [`StrAsElemsError`](crate::slice::str::StrAsElemsError).
+    #[inline(always)]
+    #[track_caller]
+    pub(crate) const fn handle_as_elems_error(error: StrAsElemsError) -> ! {
+        error.handle()
+    }
+
+    /// Marks the code path that produced the given [`StrAsElemsError`](crate::slice::str::StrAsElemsError)
+    /// as impossible.
+    ///
+    /// # Safety
+    ///
+    /// The caller *must* ensure that it is impossible for the given error to have been produced. Failure
+    /// to do so is *undefined behavior* as calling this function makes promises to the compiler that change
+    /// what optimizations are valid.
+    ///
+    /// Proceed with caution.
+    #[inline(always)]
+    #[track_caller]
+    pub(crate) const unsafe fn handle_as_elems_error_unchecked(error: StrAsElemsError) -> ! {
+        // SAFETY: The caller ensures that this code path is impossible to reach.
+        unsafe { error.handle_unchecked() }
+    }
+
+    /// Panics with an error message for the given [`StrSplitError`](crate::slice::str::StrSplitError).
+    #[inline(always)]
+    #[track_caller]
+    pub(crate) const fn handle_split_error(error: StrSplitError) -> ! {
+        error.handle()
+    }
+
+    /// Marks the code path that produced the given [`StrSplitError`](crate::slice::str::StrSplitError)
+    /// as impossible.
+    ///
+    /// # Safety
+    ///
+    /// The caller *must* ensure that it is impossible for the given error to have been produced. Failure
+    /// to do so is *undefined behavior* as calling this function makes promises to the compiler that change
+    /// what optimizations are valid.
+    ///
+    /// Proceed with caution.
+    #[inline(always)]
+    #[track_caller]
+    pub(crate) const unsafe fn handle_split_error_unchecked(error: StrSplitError) -> ! {
+        // SAFETY: The caller ensures that this code path is impossible to reach.
+        unsafe { error.handle_unchecked() }
+    }
 }
 
 /// An error for attempting to get the inner elements of a [`prim@str`].
@@ -83,18 +155,18 @@ methods! {
 /// This only affects mutable borrows.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[non_exhaustive]
-pub enum StrElemsError {
+pub enum StrAsElemsError {
     /// It is not safe to get a mutable reference to the inner `[u8]` for a [`prim@str`].
     UnsafeToMutablyBorrow,
 }
 
-impl StrElemsError {
+impl StrAsElemsError {
     /// Panics with an error message corresponding to `self`.
     #[inline(always)]
     #[track_caller]
     pub(crate) const fn handle(&self) -> ! {
         match self {
-            StrElemsError::UnsafeToMutablyBorrow => {
+            StrAsElemsError::UnsafeToMutablyBorrow => {
                 panic!("it is unsafe to mutably borrow the underlying bytes of a string")
             }
         }
@@ -109,8 +181,9 @@ impl StrElemsError {
     #[inline(always)]
     #[track_caller]
     pub(crate) const unsafe fn handle_unchecked(&self) -> ! {
+        // SAFETY: The caller ensures this is sound.
         match self {
-            StrElemsError::UnsafeToMutablyBorrow => unsafe {
+            StrAsElemsError::UnsafeToMutablyBorrow => unsafe {
                 unreachable_unchecked!(
                     "it is unsafe to mutably borrow the underlying bytes of a string"
                 )
@@ -119,10 +192,10 @@ impl StrElemsError {
     }
 }
 
-impl fmt::Display for StrElemsError {
+impl fmt::Display for StrAsElemsError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            StrElemsError::UnsafeToMutablyBorrow => core::write!(
+            StrAsElemsError::UnsafeToMutablyBorrow => core::write!(
                 f,
                 "it is unsafe to mutably borrow the underlying bytes of a string"
             ),
@@ -130,7 +203,7 @@ impl fmt::Display for StrElemsError {
     }
 }
 
-impl core::error::Error for StrElemsError {}
+impl core::error::Error for StrAsElemsError {}
 
 /// An error that occurs when trying to split a [`prim@str`].
 ///
@@ -163,6 +236,7 @@ impl StrSplitError {
     #[inline(always)]
     #[track_caller]
     pub(crate) const unsafe fn handle_unchecked(&self) -> ! {
+        // SAFETY: The caller ensures this is sound.
         match self {
             StrSplitError::InvalidCharBoundary { .. } => unsafe {
                 unreachable_unchecked!(

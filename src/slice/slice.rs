@@ -1,4 +1,5 @@
 use core::{
+    convert::Infallible,
     ptr::{self, NonNull},
     slice,
 };
@@ -68,5 +69,41 @@ methods! {
     pub(crate) const unsafe fn from_raw_parts_mut['a, T](data: *mut T, len: usize) -> &'a mut [T] {
         // SAFETY: The caller ensures this is safe.
         unsafe { slice::from_raw_parts_mut(data, len) }
+    }
+
+    /// This function is impossible to call. Don't even try.
+    #[inline(always)]
+    pub(crate) const fn handle_from_elems_error(error: Infallible) -> ! {
+        match error {}
+    }
+
+    /// This function is impossible to call. Don't even try.
+    #[inline(always)]
+    pub(crate) const unsafe fn handle_from_elems_error_unchecked(error: Infallible) -> ! {
+        match error {}
+    }
+
+    /// This function is impossible to call. Don't even try.
+    #[inline(always)]
+    pub(crate) const fn handle_as_elems_error(error: Infallible) -> ! {
+        match error {}
+    }
+
+    /// This function is impossible to call. Don't even try.
+    #[inline(always)]
+    pub(crate) const unsafe fn handle_as_elems_error_unchecked(error: Infallible) -> ! {
+        match error {}
+    }
+
+    /// This function is impossible to call. Don't even try.
+    #[inline(always)]
+    pub(crate) const fn handle_split_error(error: Infallible) -> ! {
+        match error {}
+    }
+
+    // This function is impossible to call. Don't even try.
+    #[inline(always)]
+    pub(crate) const unsafe fn handle_split_error_unchecked(error: Infallible) -> ! {
+        match error {}
     }
 }
