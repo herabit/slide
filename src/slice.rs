@@ -1,7 +1,7 @@
 #![allow(clippy::empty_docs)]
 
 use crate::{marker::TypeEq, slice::private::SliceKind};
-use core::{cmp::Ordering, convert::Infallible, fmt, hash, mem, ptr::NonNull, str::Utf8Error};
+use core::{convert::Infallible, fmt, ptr::NonNull, str::Utf8Error};
 
 /// Internal implementation details.
 pub(crate) mod private;
@@ -153,6 +153,28 @@ methods! {
     ) {
         // SAFETY: The caller ensures this is safe.
         unsafe { S::KIND.0.from_raw_parts_mut(data, len) }
+    }
+
+    // TODO: Write better docs.
+    /// Try to create a slice from a slice of its elements.
+    #[inline(always)]
+    #[track_caller]
+    pub const fn try_from_elems['a, S](elems: &'a [S::Elem]) -> Result<&'a S, FromElemsError<S>>
+    where (
+        S: Slice + ?Sized,
+    ) {
+        S::KIND.0.try_from_elems(elems)
+    }
+
+    // TODO: Write better docs.
+    /// Try to create a mutable slice from a slice of its elements.
+    #[inline(always)]
+    #[track_caller]
+    pub const fn try_from_elems_mut['a, S](elems: &'a mut [S::Elem]) -> Result<&'a mut S, FromElemsError<S>>
+    where (
+        S: Slice + ?Sized,
+    ) {
+        S::KIND.0.try_from_elems_mut(elems)
     }
 }
 
@@ -505,6 +527,52 @@ macro_rules! slice {
                         Self::$variant { slice, elem, .. } => slice.uncoerce_mut(unsafe {
                             self::$module::from_raw_parts_mut(elem.coerce_ptr_mut(data), len)
                         }),
+                    )*
+                }
+            }
+
+            #[inline(always)]
+            #[track_caller]
+            const fn try_from_elems<'a>(
+                self,
+                elems: &'a [S::Elem],
+            ) -> Result<&'a S, FromElemsError<S>> {
+                match self {
+                    $(
+                        $(#[cfg($($cfg)*)])*
+                        Self::$variant {
+                            slice, elem, ..
+                        } => {
+                            slice
+                                .wrap_ref()
+                                .wrap_result(slice.wrap_from_elems_error())
+                                .uncoerce(self::$module::try_from_elems(
+                                    elem.wrap_slice().wrap_ref().coerce(elems)
+                                ))
+                        },
+                    )*
+                }
+            }
+
+            #[inline(always)]
+            #[track_caller]
+            const fn try_from_elems_mut<'a>(
+                self,
+                elems: &'a mut [S::Elem],
+            ) -> Result<&'a mut S, FromElemsError<S>> {
+                match self {
+                    $(
+                        $(#[cfg($($cfg)*)])*
+                        Self::$variant {
+                            slice, elem, ..
+                        } => {
+                            slice
+                                .wrap_mut()
+                                .wrap_result(slice.wrap_from_elems_error())
+                                .uncoerce(self::$module::try_from_elems_mut(
+                                    elem.wrap_slice().wrap_mut().coerce(elems)
+                                ))
+                        }
                     )*
                 }
             }

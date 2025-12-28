@@ -15,6 +15,7 @@ use core::{mem::ManuallyDrop, ptr};
 #[must_use]
 #[track_caller]
 pub(crate) const unsafe fn transmute_unchecked<A, B>(a: A) -> B {
+    #[allow(clippy::missing_docs_in_private_items)]
     #[repr(C)]
     union Transmute<A, B> {
         a: ManuallyDrop<A>,

@@ -3,7 +3,10 @@
 use core::{marker::PhantomData, ptr};
 
 use super::variance::Invariant;
-use crate::mem;
+use crate::{
+    mem,
+    slice::{self, AsElemsError, FromElemsError, SplitError},
+};
 
 /// Marker trait for type-level functions.
 ///
@@ -415,6 +418,81 @@ where
 {
     type Arg = A;
     type Func = NoDrop;
+}
+
+/// A type-level function that wraps a given error as a [`FromElemsError`].
+pub(crate) struct FromElemsErr;
+
+impl<S> Func<S> for FromElemsErr
+where
+    S: slice::Slice + ?Sized,
+{
+    type Output = FromElemsError<S>;
+}
+
+impl<S> RevFunc<FromElemsError<S>> for FromElemsErr
+where
+    S: slice::Slice + ?Sized,
+{
+    type Arg = S;
+}
+
+impl<S> HasFunc for FromElemsError<S>
+where
+    S: slice::Slice + ?Sized,
+{
+    type Arg = S;
+    type Func = FromElemsErr;
+}
+
+/// A type-level function that wraps a given error as a [`AsElemsError`].
+pub(crate) struct AsElemsErr;
+
+impl<S> Func<S> for AsElemsErr
+where
+    S: slice::Slice + ?Sized,
+{
+    type Output = AsElemsError<S>;
+}
+
+impl<S> RevFunc<AsElemsError<S>> for AsElemsErr
+where
+    S: slice::Slice + ?Sized,
+{
+    type Arg = S;
+}
+
+impl<S> HasFunc for AsElemsError<S>
+where
+    S: slice::Slice + ?Sized,
+{
+    type Arg = S;
+    type Func = AsElemsErr;
+}
+
+/// A type-level that wrap a given error as a [`SplitError`].
+pub(crate) struct SplitErr;
+
+impl<S> Func<S> for SplitErr
+where
+    S: slice::Slice + ?Sized,
+{
+    type Output = SplitError<S>;
+}
+
+impl<S> RevFunc<SplitError<S>> for SplitErr
+where
+    S: slice::Slice + ?Sized,
+{
+    type Arg = S;
+}
+
+impl<S> HasFunc for SplitError<S>
+where
+    S: slice::Slice + ?Sized,
+{
+    type Arg = S;
+    type Func = SplitErr;
 }
 
 /// A type-level function that wraps a given type in a [`alloc::boxed::Box`].

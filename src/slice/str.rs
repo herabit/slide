@@ -5,7 +5,7 @@ use core::{
     str::Utf8Error,
 };
 
-use crate::macros::unreachable_unchecked;
+use crate::{macros::unreachable_unchecked, slice::FromElemsError};
 
 methods! {
     /// Returns the provided string's length, in bytes.
@@ -52,11 +52,14 @@ methods! {
         unsafe { mem::transmute(raw_slice_mut(data.as_ptr(), len)) }
     }
 
+    // TODO: Write better docs.
     /// Create a shared string slice reference given a data pointer and length.
     ///
     /// # Safety
     ///
-    /// ***TODO***
+    /// In addition to the invariants described for [`slice::from_raw_parts`](::core::slice::from_raw_parts),
+    /// where `T` is [`prim@u8`], the caller must ensure that the created byte slice is valid UTF-8. Failure
+    /// to uphold these invariants is *undefined behavior*.
     #[inline(always)]
     #[must_use]
     #[track_caller]
@@ -65,17 +68,48 @@ methods! {
         unsafe { str::from_utf8_unchecked(slice::from_raw_parts(data, len)) }
     }
 
+    // TODO: Write better docs.
     /// Create a mutable string slice reference given a data pointer and length.
     ///
     /// # Safety
     ///
-    /// ***TODO***
+    /// In addition to the invariants described for [`slice::from_raw_parts_mut`](::core::slice::from_raw_parts_mut),
+    /// where `T` is [`prim@u8`]m the caller must ensure that the created byte slice is valid UTF-8. Failure
+    /// to uphold these invariiants is *undefined behavior*.
     #[inline(always)]
     #[must_use]
     #[track_caller]
     pub(crate) const unsafe fn from_raw_parts_mut['a](data: *mut u8, len: usize) -> &'a mut str {
         // SAFETY: The caller ensures this is safe.
         unsafe { str::from_utf8_unchecked_mut(slice::from_raw_parts_mut(data, len)) }
+    }
+
+    /// Try to create a string from a byte slice.
+    ///
+    /// # Returns
+    ///
+    /// Returns an error if the provided byte slice contains invalid UTF-8.
+    #[inline(always)]
+    #[track_caller]
+    pub(crate) const fn try_from_elems(bytes: &[u8]) -> Result<&str, FromElemsError<str>> {
+        match <str>::from_utf8(bytes) {
+            Ok(string) => Ok(string),
+            Err(error) => Err(FromElemsError(error)),
+        }
+    }
+
+    /// Try to create a mutable string from a mutable byte slice.
+    ///
+    /// # Returns
+    ///
+    /// Returns an error if the provided byte slice contains invalid UTF-8.
+    #[inline(always)]
+    #[track_caller]
+    pub(crate) const fn try_from_elems_mut(bytes: &mut [u8]) -> Result<&mut str, FromElemsError<str>> {
+        match <str>::from_utf8_mut(bytes) {
+            Ok(string) => Ok(string),
+            Err(error) => Err(FromElemsError(error)),
+        }
     }
 
     /// Panics with an error message for the given [`Utf8Error`](::core::str::Utf8Error).

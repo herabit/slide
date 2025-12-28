@@ -21,7 +21,10 @@ use core::ptr::NonNull;
 use type_fn::{Call, Func, HasFunc, Rev, RevFunc, Uncall};
 use variance::Invariant;
 
-use crate::macros::assert_layout_unchecked;
+use crate::{
+    macros::assert_layout_unchecked,
+    slice::{AsElemsError, FromElemsError, Slice, SplitError},
+};
 
 /// Module for type level functions.
 pub(crate) mod type_fn;
@@ -409,6 +412,38 @@ impl<T0, T1> TypeEq<T0, T1> {
         error: TypeEq<E0, E1>,
     ) -> TypeEq<Result<T0, E0>, Result<T1, E1>> {
         self.zip(error).project()
+    }
+}
+
+impl<S0, S1> TypeEq<S0, S1>
+where
+    S0: Slice + ?Sized,
+    S1: Slice + ?Sized,
+{
+    /// Create a proof that `FromElemsError<S0> == FromElemsError<S1>`.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub(crate) const fn wrap_from_elems_error(
+        self,
+    ) -> TypeEq<FromElemsError<S0>, FromElemsError<S1>> {
+        self.project()
+    }
+
+    /// Create a proof that `AsElemsError<S0> == AsElemsError<S1>`.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub(crate) const fn wrap_as_elems_error(self) -> TypeEq<AsElemsError<S0>, AsElemsError<S1>> {
+        self.project()
+    }
+
+    /// Create a proof that `SplitError<S0> == SplitError<S1>`.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub(crate) const fn wrap_split_error(self) -> TypeEq<SplitError<S0>, SplitError<S1>> {
+        self.project()
     }
 }
 
