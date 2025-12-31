@@ -6,6 +6,7 @@ use crate::{macros::unreachable_unchecked, slice::Slice};
 /// a slice from its component elements.
 ///
 /// ***TODO***
+#[repr(transparent)]
 pub struct FromElemsError<S>(pub S::FromElemsErr)
 where
     S: Slice + ?Sized;
@@ -163,6 +164,7 @@ where
 /// component elements.
 ///
 /// ***TODO***
+#[repr(transparent)]
 pub struct AsElemsError<S>(pub S::AsElemsErr)
 where
     S: Slice + ?Sized;

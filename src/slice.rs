@@ -251,6 +251,16 @@ pub unsafe trait Slice: private::Sealed {
     #[track_caller]
     #[must_use]
     unsafe fn from_raw_parts_mut<'a>(data: *mut Self::Elem, len: usize) -> &'a mut Self;
+
+    #[doc = docs!(try_from_elems)]
+    #[track_caller]
+    fn try_from_elems<'a>(elems: &'a [Self::Elem]) -> Result<&'a Self, FromElemsError<Self>>;
+
+    #[doc = docs!(try_from_elems_mut)]
+    #[track_caller]
+    fn try_from_elems_mut<'a>(
+        elems: &'a mut [Self::Elem],
+    ) -> Result<&'a mut Self, FromElemsError<Self>>;
 }
 
 /// Gets a type or it's alternative, preferring the alternative.
@@ -322,21 +332,21 @@ macro_rules! slice {
                     split_error: TypeEq::new(),
                 });
 
-                #[doc = $module::docs!(len)]
+                #[doc = self::$module::docs!(len)]
                 #[inline(always)]
                 #[track_caller]
                 fn len(&self) -> usize {
                     len(self)
                 }
 
-                #[doc = $module::docs!(is_empty)]
+                #[doc = self::$module::docs!(is_empty)]
                 #[inline(always)]
                 #[track_caller]
                 fn is_empty(&self) -> bool {
                     is_empty(self)
                 }
 
-                #[doc = $module::docs!(raw_slice)]
+                #[doc = self::$module::docs!(raw_slice)]
                 #[inline(always)]
                 #[track_caller]
                 fn raw_slice(data: *const $elem, len: usize) -> *const $slice {
@@ -350,14 +360,14 @@ macro_rules! slice {
                     raw_slice_mut(data, len)
                 }
 
-                #[doc = $module::docs!(raw_slice_nonnull)]
+                #[doc = self::$module::docs!(raw_slice_nonnull)]
                 #[inline(always)]
                 #[track_caller]
                 fn raw_slice_nonnull(data: NonNull<$elem>, len: usize) -> NonNull<$slice> {
                     raw_slice_nonnull(data, len)
                 }
 
-                #[doc = $module::docs!(from_raw_parts)]
+                #[doc = self::$module::docs!(from_raw_parts)]
                 #[inline(always)]
                 #[track_caller]
                 unsafe fn from_raw_parts<'a>(data: *const $elem, len: usize) -> &'a $slice {
@@ -365,12 +375,26 @@ macro_rules! slice {
                     unsafe { from_raw_parts(data, len) }
                 }
 
-                #[doc = $module::docs!(from_raw_parts_mut)]
+                #[doc = self::$module::docs!(from_raw_parts_mut)]
                 #[inline(always)]
                 #[track_caller]
                 unsafe fn from_raw_parts_mut<'a>(data: *mut $elem, len: usize) -> &'a mut $slice {
                     // SAFETY: The caller ensures this is safe.
                     unsafe { from_raw_parts_mut(data, len) }
+                }
+
+                #[doc = self::$module::docs!(try_from_elems)]
+                #[inline(always)]
+                #[track_caller]
+                fn try_from_elems<'a>(elems: &'a [Self::Elem]) -> Result<&'a Self, FromElemsError<Self>> {
+                    try_from_elems(elems)
+                }
+
+                #[doc = self::$module::docs!(try_from_elems_mut)]
+                #[inline(always)]
+                #[track_caller]
+                fn try_from_elems_mut<'a>(elems: &'a mut [Self::Elem]) -> Result<&'a mut Self, FromElemsError<Self>> {
+                    try_from_elems_mut(elems)
                 }
             }
         )+
@@ -452,9 +476,15 @@ macro_rules! slice {
                 match self {
                     $(
                         $(#[cfg($($cfg)*)])*
-                        Self::$variant { slice, elem, .. } => slice.uncoerce_ptr(
-                            self::$module::raw_slice(elem.coerce_ptr(data), len),
-                        ),
+                        Self::$variant {
+                            slice, elem, ..
+                        } => slice
+                            .uncoerce_ptr(
+                                self::$module::raw_slice(
+                                    elem.coerce_ptr(data),
+                                    len,
+                                ),
+                            ),
                     )*
                 }
             }
@@ -470,9 +500,15 @@ macro_rules! slice {
                 match self {
                     $(
                         $(#[cfg($($cfg)*)])*
-                        Self::$variant { slice, elem, .. } => slice.uncoerce_ptr_mut(
-                            self::$module::raw_slice_mut(elem.coerce_ptr_mut(data), len)
-                        ),
+                        Self::$variant {
+                            slice, elem, ..
+                        } => slice
+                            .uncoerce_ptr_mut(
+                                self::$module::raw_slice_mut(
+                                    elem.coerce_ptr_mut(data),
+                                    len,
+                                ),
+                            ),
                     )*
                 }
             }
@@ -488,9 +524,15 @@ macro_rules! slice {
                 match self {
                     $(
                         $(#[cfg($($cfg)*)])*
-                        Self::$variant { slice, elem, .. } => slice.uncoerce_nonnull(
-                            self::$module::raw_slice_nonnull(elem.coerce_nonnull(data), len)
-                        ),
+                        Self::$variant {
+                            slice, elem, ..
+                        } => slice
+                            .uncoerce_nonnull(
+                                self::$module::raw_slice_nonnull(
+                                    elem.coerce_nonnull(data),
+                                    len,
+                                ),
+                            ),
                     )*
                 }
             }
@@ -506,9 +548,15 @@ macro_rules! slice {
                 match self {
                     $(
                         $(#[cfg($($cfg)*)])*
-                        Self::$variant { slice, elem, .. } => slice.uncoerce_ref(unsafe {
-                            self::$module::from_raw_parts(elem.coerce_ptr(data), len)
-                        }),
+                        Self::$variant {
+                            slice, elem, ..
+                        } => slice
+                            .uncoerce_ref(unsafe {
+                                self::$module::from_raw_parts(
+                                    elem.coerce_ptr(data),
+                                    len,
+                                )
+                            }),
                     )*
                 }
             }
@@ -524,9 +572,15 @@ macro_rules! slice {
                 match self {
                     $(
                         $(#[cfg($($cfg)*)])*
-                        Self::$variant { slice, elem, .. } => slice.uncoerce_mut(unsafe {
-                            self::$module::from_raw_parts_mut(elem.coerce_ptr_mut(data), len)
-                        }),
+                        Self::$variant {
+                            slice, elem, ..
+                        } => slice
+                            .uncoerce_mut(unsafe {
+                                self::$module::from_raw_parts_mut(
+                                    elem.coerce_ptr_mut(data),
+                                    len,
+                                )
+                            }),
                     )*
                 }
             }
@@ -542,14 +596,16 @@ macro_rules! slice {
                         $(#[cfg($($cfg)*)])*
                         Self::$variant {
                             slice, elem, ..
-                        } => {
-                            slice
-                                .wrap_ref()
-                                .wrap_result(slice.wrap_from_elems_error())
-                                .uncoerce(self::$module::try_from_elems(
-                                    elem.wrap_slice().wrap_ref().coerce(elems)
-                                ))
-                        },
+                        } => slice
+                            .wrap_ref()
+                            .wrap_result(slice.wrap_from_elems_error())
+                            .uncoerce(
+                                self::$module::try_from_elems(
+                                    elem
+                                        .wrap_slice()
+                                        .coerce_ref(elems),
+                                ),
+                            ),
                     )*
                 }
             }
@@ -565,14 +621,110 @@ macro_rules! slice {
                         $(#[cfg($($cfg)*)])*
                         Self::$variant {
                             slice, elem, ..
-                        } => {
-                            slice
-                                .wrap_mut()
-                                .wrap_result(slice.wrap_from_elems_error())
-                                .uncoerce(self::$module::try_from_elems_mut(
-                                    elem.wrap_slice().wrap_mut().coerce(elems)
-                                ))
-                        }
+                        } => slice
+                            .wrap_mut()
+                            .wrap_result(slice.wrap_from_elems_error())
+                            .uncoerce(
+                                self::$module::try_from_elems_mut(
+                                    elem
+                                        .wrap_slice()
+                                        .coerce_mut(elems),
+                                ),
+                            ),
+                    )*
+                }
+            }
+
+            #[inline(always)]
+            #[track_caller]
+            const fn from_elems<'a>(
+                self,
+                elems: &'a [S::Elem],
+            ) -> &'a S {
+                match self {
+                    $(
+                        $(#[cfg($($cfg)*)])*
+                        Self::$variant {
+                            slice, elem, ..
+                        } => slice
+                            .wrap_ref()
+                            .uncoerce(
+                                self::$module::from_elems(
+                                    elem
+                                        .wrap_slice()
+                                        .coerce_ref(elems),
+                                ),
+                            ),
+                    )*
+                }
+            }
+
+            #[inline(always)]
+            #[track_caller]
+            const fn from_elems_mut<'a>(
+                self,
+                elems: &'a mut [S::Elem],
+            ) -> &'a mut S {
+                match self {
+                    $(
+                        $(#[cfg($($cfg)*)])*
+                        Self::$variant {
+                            slice, elem, ..
+                        } => slice
+                            .wrap_mut()
+                            .uncoerce(
+                                self::$module::from_elems_mut(
+                                    elem
+                                        .wrap_slice()
+                                        .coerce_mut(elems),
+                                ),
+                            ),
+                    )*
+                }
+            }
+
+            #[inline(always)]
+            #[track_caller]
+            const unsafe fn from_elems_unchecked<'a>(
+                self,
+                elems: &'a [S::Elem],
+            ) -> &'a S {
+                match self {
+                    $(
+                        $(#[cfg($($cfg)*)])*
+                        Self::$variant {
+                            slice, elem, ..
+                        } => slice
+                            .uncoerce_ref(unsafe {
+                                self::$module::from_elems_unchecked(
+                                    elem
+                                        .wrap_slice()
+                                        .coerce_ref(elems),
+                                )
+                            }),
+                    )*
+                }
+            }
+
+            #[inline(always)]
+            #[track_caller]
+            const unsafe fn from_elems_mut_unchecked<'a>(
+                self,
+                elems: &'a mut [S::Elem],
+            ) -> &'a mut S {
+                match self {
+                    $(
+                        $(#[cfg($($cfg)*)])*
+                        Self::$variant {
+                            slice, elem, ..
+                        } => slice
+                            .uncoerce_mut(unsafe {
+                                self::$module::from_elems_mut_unchecked(
+                                    elem
+                                        .wrap_slice()
+                                        .coerce_mut(elems),
+                                )
+                            }),
                     )*
                 }
             }

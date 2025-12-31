@@ -77,20 +77,68 @@ methods! {
     ///
     /// # Returns
     ///
-    /// Always returns `Ok(slice)`.
+    /// Always returns `Ok(elems)`.
     #[inline(always)]
-    pub(crate) const fn try_from_elems['a, T](slice: &'a [T]) -> Result<&'a [T], FromElemsError<[T]>> {
-        Ok(slice)
+    pub(crate) const fn try_from_elems['a, T](elems: &'a [T]) -> Result<&'a [T], FromElemsError<[T]>> {
+        Ok(elems)
+    }
+
+    /// Create a slice from itself.
+    ///
+    /// # Returns
+    ///
+    /// Always returns `elems`.
+    #[inline(always)]
+    pub(crate) const fn from_elems['a, T](elems: &'a [T]) -> &'a [T] {
+        elems
+    }
+
+    /// Create a mutably slice from itself.
+    ///
+    /// # Returns
+    ///
+    /// Always returns `elems`.
+    #[inline(always)]
+    pub(crate) const fn from_elems_mut['a, T](elems: &'a mut [T]) -> &'a mut [T] {
+        elems
+    }
+
+    /// Create a slice from itself without any checks.
+    ///
+    /// # Returns
+    ///
+    /// Always returns `elems`.
+    ///
+    /// # Safety
+    ///
+    /// This is always safe to call.
+    #[inline(always)]
+    pub(crate) const unsafe fn from_elems_unchecked['a, T](elems: &'a [T]) -> &'a [T] {
+        elems
+    }
+
+    /// Create a mutable slice from itself without any checks.
+    ///
+    /// # Returns
+    ///
+    /// Always returns `elems`.
+    ///
+    /// # Safety
+    ///
+    /// This is always safe to call.
+    #[inline(always)]
+    pub(crate) const unsafe fn from_elems_mut_unchecked['a, T](elems: &'a mut [T]) -> &'a mut [T] {
+        elems
     }
 
     /// Try to create a mutable slice from itself.
     ///
     /// # Returns
     ///
-    /// Always returns `Ok(slice)`.
+    /// Always returns `Ok(elems)`.
     #[inline(always)]
-    pub(crate) const fn try_from_elems_mut['a, T](slice: &'a mut [T]) -> Result<&'a mut [T], FromElemsError<[T]>> {
-        Ok(slice)
+    pub(crate) const fn try_from_elems_mut['a, T](elems: &'a mut [T]) -> Result<&'a mut [T], FromElemsError<[T]>> {
+        Ok(elems)
     }
 
     /// This function is impossible to call. Don't even try.

@@ -91,7 +91,7 @@ methods! {
     /// Returns an error if the provided byte slice contains invalid UTF-8.
     #[inline(always)]
     #[track_caller]
-    pub(crate) const fn try_from_elems(bytes: &[u8]) -> Result<&str, FromElemsError<str>> {
+    pub(crate) const fn try_from_elems['a](bytes: &'a [u8]) -> Result<&'a str, FromElemsError<str>> {
         match <str>::from_utf8(bytes) {
             Ok(string) => Ok(string),
             Err(error) => Err(FromElemsError(error)),
@@ -105,10 +105,82 @@ methods! {
     /// Returns an error if the provided byte slice contains invalid UTF-8.
     #[inline(always)]
     #[track_caller]
-    pub(crate) const fn try_from_elems_mut(bytes: &mut [u8]) -> Result<&mut str, FromElemsError<str>> {
+    pub(crate) const fn try_from_elems_mut['a](bytes: &'a mut [u8]) -> Result<&'a mut str, FromElemsError<str>> {
         match <str>::from_utf8_mut(bytes) {
             Ok(string) => Ok(string),
             Err(error) => Err(FromElemsError(error)),
+        }
+    }
+
+    /// Create a string from a byte slice.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the provided byte slice contains invalid UTF-8.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub(crate) const fn from_elems['a](bytes: &'a [u8]) -> &'a str {
+        match try_from_elems(bytes) {
+            Ok(string) => string,
+            Err(error) => error.panic(),
+        }
+    }
+
+    /// Create a mutable string from a mutable byte slice.
+    ///
+    /// # Panics
+    ///
+    /// Panics is the provided byte slice contains invalid UTF-8.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub(crate) const fn from_elems_mut['a](bytes: &'a mut [u8]) -> &'a mut str {
+        match try_from_elems_mut(bytes) {
+            Ok(string) => string,
+            Err(error) => error.panic(),
+        }
+    }
+
+    /// Create a string from a byte slice without any checks.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that the provided byte slice is valid UTF-8.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub(crate) const unsafe fn from_elems_unchecked['a](bytes: &'a [u8]) -> &'a str {
+        if cfg!(not(debug_assertions)) {
+            // SAFETY: The caller ensures this is sound.
+            unsafe { <str>::from_utf8_unchecked(bytes) }
+        } else {
+            match try_from_elems(bytes) {
+                Ok(string) => string,
+                // SAFETY: The caller ensures this is sound.
+                Err(error) => unsafe { error.panic_unchecked() },
+            }
+        }
+    }
+
+    /// Create a mutable string from a byte slice without any checks.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that the provided byte slice is valid UTF-8.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub(crate) const unsafe fn from_elems_mut_unchecked['a](bytes: &'a mut [u8]) -> &'a mut str {
+        if cfg!(not(debug_assertions)) {
+            // SAFETY: The caller ensures this is sound.
+            unsafe { <str>::from_utf8_unchecked_mut(bytes) }
+        } else {
+            match try_from_elems_mut(bytes) {
+                Ok(string) => string,
+                // SAFETY: The caller ensures this is sound.
+                Err(error) => unsafe { error.panic_unchecked() },
+            }
         }
     }
 
@@ -237,7 +309,13 @@ impl fmt::Display for StrAsElemsError {
     }
 }
 
-impl core::error::Error for StrAsElemsError {}
+impl core::error::Error for StrAsElemsError {
+    #[inline]
+    #[allow(deprecated)]
+    fn description(&self) -> &str {
+        "it is unsafe to mutably borrow the underlying bytes of a string"
+    }
+}
 
 /// An error that occurs when trying to split a [`prim@str`].
 ///
@@ -292,4 +370,10 @@ impl fmt::Display for StrSplitError {
     }
 }
 
-impl core::error::Error for StrSplitError {}
+impl core::error::Error for StrSplitError {
+    #[inline]
+    #[allow(deprecated)]
+    fn description(&self) -> &str {
+        "the byte at the specified index is not a valid UTF-8 character boundary"
+    }
+}
