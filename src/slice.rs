@@ -68,6 +68,7 @@ macro_rules! methods {
 pub(crate) use methods;
 
 methods! {
+    // TODO: Write better docs.
     /// Returns the length of the provided slice, in elements.
     #[inline(always)]
     #[must_use]
@@ -79,6 +80,7 @@ methods! {
         S::KIND.0.len(slice)
     }
 
+    // TODO: Write better docs.
     /// Returns whether the provided slice is empty.
     #[inline(always)]
     #[must_use]
@@ -90,6 +92,7 @@ methods! {
         S::KIND.0.is_empty(slice)
     }
 
+    // TODO: Write better docs.
     /// Creates a raw slice given a data pointer and length.
     #[inline(always)]
     #[must_use]
@@ -101,6 +104,7 @@ methods! {
         S::KIND.0.raw_slice(data, len)
     }
 
+    // TODO: Write better docs.
     /// Creates a mutable raw slice given a data pointer and length.
     #[inline(always)]
     #[must_use]
@@ -112,6 +116,7 @@ methods! {
         S::KIND.0.raw_slice_mut(data, len)
     }
 
+    // TODO: Write better docs.
     /// Create a [`NonNull`] raw slice given a data pointer and length.
     #[inline(always)]
     #[must_use]
@@ -123,6 +128,7 @@ methods! {
         S::KIND.0.raw_slice_nonnull(data, len)
     }
 
+    // TODO: Write better docs.
     /// Create a shared slice reference given a data pointer and length.
     ///
     /// # Safety
@@ -139,6 +145,7 @@ methods! {
         unsafe { S::KIND.0.from_raw_parts(data, len) }
     }
 
+    // TODO: Write better docs.
     /// Create a mutable slice reference given a data pointer and length.
     ///
     /// # Safety
