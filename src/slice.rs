@@ -167,7 +167,7 @@ methods! {
     }
 
     // TODO: Write better docs.
-    /// Try to create a mutable slice from a slice of its elements.
+    /// Try to create a mutable slice from a mutable slice of its elements.
     #[inline(always)]
     #[track_caller]
     pub const fn try_from_elems_mut['a, S](elems: &'a mut [S::Elem]) -> Result<&'a mut S, FromElemsError<S>>
@@ -175,6 +175,60 @@ methods! {
         S: Slice + ?Sized,
     ) {
         S::KIND.0.try_from_elems_mut(elems)
+    }
+
+    // TODO: Write better docs.
+    /// Create a slice from a slice of its elements.
+    #[inline(always)]
+    #[track_caller]
+    pub const fn from_elems['a, S](elems: &'a [S::Elem]) -> &'a S
+    where (
+        S: Slice + ?Sized,
+    ) {
+        S::KIND.0.from_elems(elems)
+    }
+
+    // TODO: Write better docs.
+    /// Create a mutable slice from a mutable slice of its elements.
+    #[inline(always)]
+    #[track_caller]
+    pub const fn from_elems_mut['a, S](elems: &'a mut [S::Elem]) -> &'a mut S
+    where (
+        S: Slice + ?Sized,
+    ) {
+        S::KIND.0.from_elems_mut(elems)
+    }
+
+    // TODO: Write better docs.
+    /// Create a slice from a slice of its elements without any checks.
+    ///
+    /// # Safety
+    ///
+    /// ***TODO***
+    #[inline(always)]
+    #[track_caller]
+    pub const unsafe fn from_elems_unchecked['a, S](elems: &'a [S::Elem]) -> &'a S
+    where (
+        S: Slice + ?Sized,
+    ) {
+        // SAFETY: The caller ensures this is sound.
+        unsafe { S::KIND.0.from_elems_unchecked(elems) }
+    }
+
+    // TODO: Write better docs.
+    /// Create a mutable slice from a mutable slice of its elements without any checks.
+    ///
+    /// # Safety
+    ///
+    /// ***TODO***
+    #[inline(always)]
+    #[track_caller]
+    pub const unsafe fn from_elems_mut_unchecked['a, S](elems: &'a mut [S::Elem]) -> &'a mut S
+    where (
+        S: Slice + ?Sized,
+    ) {
+        // SAFETY: The caller ensures this is sound.
+        unsafe { S::KIND.0.from_elems_mut_unchecked(elems) }
     }
 }
 
