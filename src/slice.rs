@@ -671,7 +671,7 @@ macro_rules! slice {
                             .uncoerce(
                                 self::$module::try_from_elems(
                                     elem
-                                        .coerce_slice_ref(elems),
+                                        .coerce_slice(elems),
                                 ),
                             ),
                     )*
@@ -718,7 +718,7 @@ macro_rules! slice {
                             .uncoerce(
                                 self::$module::from_elems(
                                     elem
-                                        .coerce_slice_ref(elems),
+                                        .coerce_slice(elems),
                                 ),
                             ),
                     )*
@@ -763,7 +763,7 @@ macro_rules! slice {
                             .uncoerce_ref(unsafe {
                                 self::$module::from_elems_unchecked(
                                     elem
-                                        .coerce_slice_ref(elems),
+                                        .coerce_slice(elems),
                                 )
                             }),
                     )*
