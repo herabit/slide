@@ -506,7 +506,11 @@ macro_rules! slice {
                 match self {
                     $(
                         $(#[cfg($($cfg)*)])*
-                        Self::$variant { slice, .. } => self::$module::len(slice.coerce_ptr(s)),
+                        Self::$variant {
+                            slice, ..
+                        } => self::$module::len(
+                            slice.coerce_ptr(s),
+                        ),
                     )*
                 }
             }
@@ -521,7 +525,11 @@ macro_rules! slice {
                 match self {
                     $(
                         $(#[cfg($($cfg)*)])*
-                        Self::$variant { slice, .. } => self::$module::is_empty(slice.coerce_ptr(s)),
+                        Self::$variant {
+                            slice, ..
+                        } => self::$module::is_empty(
+                            slice.coerce_ptr(s),
+                        ),
                     )*
                 }
             }
@@ -663,8 +671,7 @@ macro_rules! slice {
                             .uncoerce(
                                 self::$module::try_from_elems(
                                     elem
-                                        .wrap_slice()
-                                        .coerce_ref(elems),
+                                        .coerce_slice_ref(elems),
                                 ),
                             ),
                     )*
@@ -688,8 +695,7 @@ macro_rules! slice {
                             .uncoerce(
                                 self::$module::try_from_elems_mut(
                                     elem
-                                        .wrap_slice()
-                                        .coerce_mut(elems),
+                                        .coerce_slice_mut(elems),
                                 ),
                             ),
                     )*
@@ -712,8 +718,7 @@ macro_rules! slice {
                             .uncoerce(
                                 self::$module::from_elems(
                                     elem
-                                        .wrap_slice()
-                                        .coerce_ref(elems),
+                                        .coerce_slice_ref(elems),
                                 ),
                             ),
                     )*
@@ -736,8 +741,7 @@ macro_rules! slice {
                             .uncoerce(
                                 self::$module::from_elems_mut(
                                     elem
-                                        .wrap_slice()
-                                        .coerce_mut(elems),
+                                        .coerce_slice_mut(elems),
                                 ),
                             ),
                     )*
@@ -759,8 +763,7 @@ macro_rules! slice {
                             .uncoerce_ref(unsafe {
                                 self::$module::from_elems_unchecked(
                                     elem
-                                        .wrap_slice()
-                                        .coerce_ref(elems),
+                                        .coerce_slice_ref(elems),
                                 )
                             }),
                     )*
@@ -782,8 +785,7 @@ macro_rules! slice {
                             .uncoerce_mut(unsafe {
                                 self::$module::from_elems_mut_unchecked(
                                     elem
-                                        .wrap_slice()
-                                        .coerce_mut(elems),
+                                        .coerce_slice_mut(elems),
                                 )
                             }),
                     )*
@@ -807,7 +809,11 @@ macro_rules! slice {
                 match self {
                     $(
                         $(#[cfg($($cfg)*)])*
-                        Self::$variant { from_elems_error, .. } => self::$module::handle_from_elems_error(from_elems_error.coerce(error)),
+                        Self::$variant {
+                            from_elems_error, ..
+                        } => self::$module::handle_from_elems_error(
+                            from_elems_error.coerce(error),
+                        ),
                     )*
                 }
             }
@@ -821,8 +827,12 @@ macro_rules! slice {
                 match self {
                     $(
                         $(#[cfg($($cfg)*)])*
-                        Self::$variant { from_elems_error, .. } => unsafe {
-                            self::$module::handle_from_elems_error_unchecked(from_elems_error.coerce(error))
+                        Self::$variant {
+                            from_elems_error, ..
+                        } => unsafe {
+                            self::$module::handle_from_elems_error_unchecked(
+                                from_elems_error.coerce(error),
+                            )
                         },
                     )*
                 }
@@ -837,7 +847,11 @@ macro_rules! slice {
                 match self {
                     $(
                         $(#[cfg($($cfg)*)])*
-                        Self::$variant { as_elems_error, .. } => self::$module::handle_as_elems_error(as_elems_error.coerce(error)),
+                        Self::$variant {
+                            as_elems_error, ..
+                        } => self::$module::handle_as_elems_error(
+                            as_elems_error.coerce(error),
+                        ),
                     )*
                 }
             }
@@ -851,8 +865,12 @@ macro_rules! slice {
                 match self {
                     $(
                         $(#[cfg($($cfg)*)])*
-                        Self::$variant { as_elems_error, .. } => unsafe {
-                            self::$module::handle_as_elems_error_unchecked(as_elems_error.coerce(error))
+                        Self::$variant {
+                            as_elems_error, ..
+                        } => unsafe {
+                            self::$module::handle_as_elems_error_unchecked(
+                                as_elems_error.coerce(error),
+                            )
                         },
                     )*
                 }
@@ -867,7 +885,11 @@ macro_rules! slice {
                 match self {
                     $(
                         $(#[cfg($($cfg)*)])*
-                        Self::$variant { split_error, .. } => self::$module::handle_split_error(split_error.coerce(error)),
+                        Self::$variant {
+                            split_error, ..
+                        } => self::$module::handle_split_error(
+                            split_error.coerce(error),
+                        ),
                     )*
                 }
             }
@@ -882,7 +904,9 @@ macro_rules! slice {
                     $(
                         $(#[cfg($($cfg)*)])*
                         Self::$variant { split_error, .. } => unsafe {
-                            self::$module::handle_split_error_unchecked(split_error.coerce(error))
+                            self::$module::handle_split_error_unchecked(
+                                split_error.coerce(error),
+                            )
                         },
                     )*
                 }
