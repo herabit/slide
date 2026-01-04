@@ -5,7 +5,10 @@ use core::{
     str::Utf8Error,
 };
 
-use crate::{macros::unreachable_unchecked, slice::FromElemsError};
+use crate::{
+    macros::unreachable_unchecked,
+    slice::{AsElemsError, FromElemsError},
+};
 
 methods! {
     /// Returns the provided string's length, in bytes.
@@ -58,8 +61,9 @@ methods! {
     /// # Safety
     ///
     /// In addition to the invariants described for [`slice::from_raw_parts`](::core::slice::from_raw_parts),
-    /// where `T` is [`prim@u8`], the caller must ensure that the created byte slice is valid UTF-8. Failure
-    /// to uphold these invariants is *undefined behavior*.
+    /// where `T` is [`prim@u8`], the caller must ensure that the created byte slice is valid UTF-8.
+    ///
+    /// Failure to uphold these invariants is *undefined behavior*.
     #[inline(always)]
     #[must_use]
     #[track_caller]
@@ -74,8 +78,9 @@ methods! {
     /// # Safety
     ///
     /// In addition to the invariants described for [`slice::from_raw_parts_mut`](::core::slice::from_raw_parts_mut),
-    /// where `T` is [`prim@u8`]m the caller must ensure that the created byte slice is valid UTF-8. Failure
-    /// to uphold these invariiants is *undefined behavior*.
+    /// where `T` is [`prim@u8`]m the caller must ensure that the created byte slice is valid UTF-8.
+    ///
+    /// Failure to uphold these invariiants is *undefined behavior*.
     #[inline(always)]
     #[must_use]
     #[track_caller]
@@ -182,6 +187,84 @@ methods! {
                 Err(error) => unsafe { error.panic_unchecked() },
             }
         }
+    }
+
+    /// Try to get the underlying byte slice of the string.
+    ///
+    /// # Returns
+    ///
+    /// Always returns `Ok(slice.as_bytes())`.
+    #[inline(always)]
+    pub(crate) const fn try_as_elems['a](slice: &'a str) -> Result<&'a [u8], AsElemsError<str>> {
+        Ok(slice.as_bytes())
+    }
+
+    /// Get the underlying byte slice of the string.
+    ///
+    /// # Returns
+    ///
+    /// Always returns `slice.as_bytes()`.
+    #[inline(always)]
+    pub(crate) const fn as_elems['a](slice: &'a str) -> &'a [u8] {
+        slice.as_bytes()
+    }
+
+    /// Get the underlying byte slice of the string without checks.
+    ///
+    /// # Returns
+    ///
+    /// Always returns `slice.as_bytes()`.
+    ///
+    /// # Safety
+    ///
+    /// It is always safe to call this.
+    #[inline(always)]
+    pub(crate) const unsafe fn as_elems_unchecked['a](slice: &'a str) -> &'a [u8] {
+        slice.as_bytes()
+    }
+
+    /// Try to get a mutable byte slice of the string.
+    ///
+    /// # Returns
+    ///
+    /// Always returns `Err(AsElemsError(StrAsElemsError::UnsafeToMutablyBorrow))`.
+    #[inline(always)]
+    pub(crate) const fn try_as_elems_mut['a](slice: &'a mut str) -> Result<&'a mut [u8], AsElemsError<str>> {
+        let _ = slice;
+        Err(AsElemsError(StrAsElemsError::UnsafeToMutablyBorrow))
+    }
+
+    /// Get a mutable byte slice of the string.
+    ///
+    /// # Panics
+    ///
+    /// This always panics, as it is *not* safe to mutably borrow the byte slice of a string.
+    #[inline(always)]
+    #[track_caller]
+    pub(crate) const fn as_elems_mut['a](slice: &'a mut str) -> &'a mut [u8] {
+        match try_as_elems_mut(slice) {
+            Ok(s) => s,
+            Err(err) => err.panic(),
+        }
+    }
+
+    /// Get a mutable byte slice of the string without any checks.
+    ///
+    /// # Returns
+    ///
+    /// Always returns `slice.as_bytes_mut()`.
+    ///
+    /// # Safety
+    ///
+    /// The caller must esnure that the contents of the slice are valid UTF-8 before the borrow
+    /// ends.
+    ///
+    /// Failure to ensure this may result in a string whose contents are invalid UTF-8,
+    /// which is *undefined behavior*.
+    #[inline(always)]
+    pub(crate) const unsafe fn as_elems_mut_unchecked['a](slice: &'a mut str) -> &'a mut [u8] {
+        // SAFETY: The caller ensure this is sound.
+        unsafe { slice.as_bytes_mut() }
     }
 
     /// Panics with an error message for the given [`Utf8Error`](::core::str::Utf8Error).

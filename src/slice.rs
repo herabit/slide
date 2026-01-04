@@ -68,76 +68,128 @@ macro_rules! methods {
 pub(crate) use methods;
 
 methods! {
-    // TODO: Write better docs.
     /// Returns the length of the provided slice, in elements.
+    ///
+    /// For more detailed documentation, refer to the documentation for [`Slice::len`]
+    /// as implemented for `S`/`Self`.
     #[inline(always)]
     #[must_use]
     #[track_caller]
-    pub const fn len[S](slice: *const S) -> usize
+    pub const fn len[S](
+        slice: *const S,
+    ) -> usize
     where (
         S: Slice + ?Sized,
     ) {
         S::KIND.0.len(slice)
     }
 
-    // TODO: Write better docs.
-    /// Returns whether the provided slice is empty.
+    /// Returns whether the given slice contains no elements.
+    ///
+    /// For more detailed documentation, refer to the documentation for [`Slice::is_empty`]
+    /// as implemented for `S`/`Self`.
     #[inline(always)]
     #[must_use]
     #[track_caller]
-    pub const fn is_empty[S](slice: *const S) -> bool
+    pub const fn is_empty[S](
+        slice: *const S,
+    ) -> bool
     where (
         S: Slice + ?Sized,
     ) {
         S::KIND.0.is_empty(slice)
     }
 
-    // TODO: Write better docs.
     /// Creates a raw slice given a data pointer and length.
+    ///
+    /// For more detailed documentation and safety info, refer to the
+    /// documentation for [`Slice::raw_slice`] as implemented for `S`/`Self`.
+    ///
+    /// # Safety
+    ///
+    /// The returned raw slice *may not be valid*. It is not safe to make any safety assumptions
+    /// about a raw slice.
+    ///
+    /// Proceed with caution.
     #[inline(always)]
     #[must_use]
     #[track_caller]
-    pub const fn raw_slice[S](data: *const S::Elem, len: usize) -> *const S
+    pub const fn raw_slice[S](
+        data: *const S::Elem,
+        len: usize,
+    ) -> *const S
     where (
         S: Slice + ?Sized,
     ) {
         S::KIND.0.raw_slice(data, len)
     }
 
-    // TODO: Write better docs.
     /// Creates a mutable raw slice given a data pointer and length.
+    ///
+    /// For more detailed documentation and safety info, refer to the
+    /// documentation for [`Slice::raw_slice_mut`] as implemented for `S`/`Self`.
+    ///
+    /// # Safety
+    ///
+    /// The returned raw slice *may not be valid*. It is not safe to make any safety assumptions
+    /// about a raw slice.
+    ///
+    /// Proceed with caution.
     #[inline(always)]
     #[must_use]
     #[track_caller]
-    pub const fn raw_slice_mut[S](data: *mut S::Elem, len: usize) -> *mut S
+    pub const fn raw_slice_mut[S](
+        data: *mut S::Elem,
+        len: usize,
+    ) -> *mut S
     where (
         S: Slice + ?Sized,
     ) {
         S::KIND.0.raw_slice_mut(data, len)
     }
 
-    // TODO: Write better docs.
     /// Create a [`NonNull`] raw slice given a data pointer and length.
+    ///
+    /// For more detailed documentation and safety info, refer to the
+    /// documentation for [`Slice::raw_slice_nonnull`] as implemented for `S`/`Self`.
+    ///
+    /// # Safety
+    ///
+    /// The returned raw slice *may not be valid*. It is not safe to make any safety assumptions
+    /// about a raw slice.
+    ///
+    /// Proceed with caution.
     #[inline(always)]
     #[must_use]
     #[track_caller]
-    pub const fn raw_slice_nonnull[S](data: NonNull<S::Elem>, len: usize) -> NonNull<S>
+    pub const fn raw_slice_nonnull[S](
+        data: NonNull<S::Elem>,
+        len: usize,
+    ) -> NonNull<S>
     where (
         S: Slice + ?Sized,
     ) {
         S::KIND.0.raw_slice_nonnull(data, len)
     }
 
-    // TODO: Write better docs.
     /// Create a shared slice reference given a data pointer and length.
+    ///
+    /// For more detailed documentation and safety info, refer to the
+    /// documentation for [`Slice::from_raw_parts`] as implemented for `S`/`Self`.
     ///
     /// # Safety
     ///
-    /// ***TODO***
+    /// It is up to the caller to ensure the following, and failure to do so is *undefined behavior*:
+    ///
+    /// - That the invariants of [`core::slice::from_raw_parts`] are upheld.
+    /// - That the invariants of [`Slice::from_elems_unchecked`] for `S`/`Self` are upheld.
     #[inline(always)]
     #[must_use]
     #[track_caller]
-    pub const unsafe fn from_raw_parts['a, S](data: *const S::Elem, len: usize) -> &'a S
+    pub const unsafe fn from_raw_parts['a, S](
+        data: *const S::Elem,
+        len: usize,
+    ) -> &'a S
     where (
         S: Slice + ?Sized,
     ) {
@@ -145,16 +197,24 @@ methods! {
         unsafe { S::KIND.0.from_raw_parts(data, len) }
     }
 
-    // TODO: Write better docs.
     /// Create a mutable slice reference given a data pointer and length.
+    ///
+    /// For more detailed documenatation and safety info, refer to the
+    /// documentation for [`Slice::from_raw_parts_mut`] as implemented for `S`/`Self`.
     ///
     /// # Safety
     ///
-    /// ***TODO***
+    /// It is up to the caller to ensure the following, and failure to do so is *undefined behavior*:
+    ///
+    /// - That the invariants of [`core::slice::from_raw_parts_mut`] are upheld.
+    /// - That the invariants of [`Slice::from_elems_mut_unchecked`] for `S`/`Self` are upheld.
     #[inline(always)]
     #[must_use]
     #[track_caller]
-    pub const unsafe fn from_raw_parts_mut['a, S](data: *mut S::Elem, len: usize) -> &'a mut S
+    pub const unsafe fn from_raw_parts_mut['a, S](
+        data: *mut S::Elem,
+        len: usize,
+    ) -> &'a mut S
     where (
         S: Slice + ?Sized,
     ) {
@@ -162,59 +222,101 @@ methods! {
         unsafe { S::KIND.0.from_raw_parts_mut(data, len) }
     }
 
-    // TODO: Write better docs.
     /// Try to create a slice from a slice of its elements.
+    ///
+    /// For more detailed documentation, refer to the documentation for [`Slice::try_from_elems`]
+    /// as implemented for `S`/`Self`.
+    ///
+    /// # Returns
+    ///
+    /// - Returns [`Ok`] upon success.
+    /// - Returns [`Err`] upon failure.
     #[inline(always)]
     #[track_caller]
-    pub const fn try_from_elems['a, S](elems: &'a [S::Elem]) -> Result<&'a S, FromElemsError<S>>
+    pub const fn try_from_elems['a, S](
+        elems: &'a [S::Elem],
+    ) -> Result<&'a S, FromElemsError<S>>
     where (
         S: Slice + ?Sized,
     ) {
         S::KIND.0.try_from_elems(elems)
     }
 
-    // TODO: Write better docs.
     /// Try to create a mutable slice from a mutable slice of its elements.
+    ///
+    /// For more detailed documentation, refer to the documentation for [`Slice::try_from_elems_mut`]
+    /// as implemented for `S`/`Self`.
+    ///
+    /// # Returns
+    ///
+    /// - Returns [`Ok`] upon success.
+    /// - Returns [`Err`] upon failure.
     #[inline(always)]
     #[track_caller]
-    pub const fn try_from_elems_mut['a, S](elems: &'a mut [S::Elem]) -> Result<&'a mut S, FromElemsError<S>>
+    pub const fn try_from_elems_mut['a, S](
+        elems: &'a mut [S::Elem],
+    ) -> Result<&'a mut S, FromElemsError<S>>
     where (
         S: Slice + ?Sized,
     ) {
         S::KIND.0.try_from_elems_mut(elems)
     }
 
-    // TODO: Write better docs.
     /// Create a slice from a slice of its elements.
+    ///
+    /// For more detailed documentation, refer to the documentation for [`Slice::from_elems`]
+    /// as implemented for `S`/`Self`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if [`Slice::try_from_elems`] fails.
     #[inline(always)]
+    #[must_use]
     #[track_caller]
-    pub const fn from_elems['a, S](elems: &'a [S::Elem]) -> &'a S
+    pub const fn from_elems['a, S](
+        elems: &'a [S::Elem],
+    ) -> &'a S
     where (
         S: Slice + ?Sized,
     ) {
         S::KIND.0.from_elems(elems)
     }
 
-    // TODO: Write better docs.
     /// Create a mutable slice from a mutable slice of its elements.
+    ///
+    /// For more detailed documentation, refer to the documentation for [`Slice::from_elems_mut`]
+    /// as implemented for `S`/`Self`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if [`Slice::try_from_elems_mut`] fails.
     #[inline(always)]
+    #[must_use]
     #[track_caller]
-    pub const fn from_elems_mut['a, S](elems: &'a mut [S::Elem]) -> &'a mut S
+    pub const fn from_elems_mut['a, S](
+        elems: &'a mut [S::Elem],
+    ) -> &'a mut S
     where (
         S: Slice + ?Sized,
     ) {
         S::KIND.0.from_elems_mut(elems)
     }
 
-    // TODO: Write better docs.
     /// Create a slice from a slice of its elements without any checks.
+    ///
+    /// For more detailed documentation and safety info, refer to
+    /// the documentation for [`Slice::from_elems_unchecked`] as implemented for `S`/`Self`.
     ///
     /// # Safety
     ///
-    /// ***TODO***
+    /// It is up to the caller to ensure that the invariants of [`Slice::from_elems_unchecked`]
+    /// as implemented for `S`/`Self` are upheld. Failure to do so is *undefined behavior*.
     #[inline(always)]
+    #[must_use]
     #[track_caller]
-    pub const unsafe fn from_elems_unchecked['a, S](elems: &'a [S::Elem]) -> &'a S
+    pub const unsafe fn from_elems_unchecked['a, S](
+        elems: &'a [S::Elem],
+    ) -> &'a S
     where (
         S: Slice + ?Sized,
     ) {
@@ -222,20 +324,150 @@ methods! {
         unsafe { S::KIND.0.from_elems_unchecked(elems) }
     }
 
-    // TODO: Write better docs.
     /// Create a mutable slice from a mutable slice of its elements without any checks.
+    ///
+    /// For more detailed documentation and safety info, refer to
+    /// the documentation for [`Slice::from_elems_mut_unchecked`] as implemented for `S`/`Self`.
     ///
     /// # Safety
     ///
-    /// ***TODO***
+    /// It is up to the caller to ensure that the invariants of [`Slice::from_elems_mut_unchecked`]
+    /// as implemented for `S`/`Self` are upheld. Failure to do so is *undefined behavior*.
     #[inline(always)]
+    #[must_use]
     #[track_caller]
-    pub const unsafe fn from_elems_mut_unchecked['a, S](elems: &'a mut [S::Elem]) -> &'a mut S
+    pub const unsafe fn from_elems_mut_unchecked['a, S](
+        elems: &'a mut [S::Elem],
+    ) -> &'a mut S
     where (
         S: Slice + ?Sized,
     ) {
         // SAFETY: The caller ensures this is sound.
         unsafe { S::KIND.0.from_elems_mut_unchecked(elems) }
+    }
+
+    /// Try to get a reference to the underlying elements of a slice.
+    ///
+    /// For more detailed documentation, refer to the documentation for [`Slice::try_as_elems`]
+    /// as implemented for `S`/`Self`.
+    ///
+    /// # Returns
+    ///
+    /// - Returns [`Ok`] upon success.
+    /// - Returns [`Err`] upon failure.
+    #[inline(always)]
+    #[track_caller]
+    pub const fn try_as_elems['a, S](
+        slice: &'a S,
+    ) -> Result<&'a [S::Elem], AsElemsError<S>>
+    where (
+        S: Slice + ?Sized,
+    ) {
+        S::KIND.0.try_as_elems(slice)
+    }
+
+    /// Get a reference to the underlying elements of a slice.
+    ///
+    /// For more detailed documentation, refer to the documentation for [`Slice::as_elems`]
+    /// as implemented for `S`/`Self`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if [`Slice::try_as_elems`] fails.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub const fn as_elems['a, S](
+        slice: &'a S,
+    ) -> &'a [S::Elem]
+    where (
+        S: Slice + ?Sized,
+    ) {
+        S::KIND.0.as_elems(slice)
+    }
+
+    /// Get a reference to the underlying elements of a slice without any checks.
+    ///
+    /// For more detailed documentation and safety info, refer to
+    /// the documentation for [`Slice::as_elems_unchecked`] as implemented for `S`/`Self`.
+    ///
+    /// # Safety
+    ///
+    /// It is up to the caller to ensure that the invariants of [`Slice::as_elems_unchecked`]
+    /// as implemented for `S`/`Self` are upheld. Failure to do so is *undefined behavior*.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub const unsafe fn as_elems_unchecked['a, S](
+        slice: &'a S,
+    ) -> &'a [S::Elem]
+    where (
+        S: Slice + ?Sized,
+    ) {
+        // SAFETY: The caller ensures this is sound.
+        unsafe { S::KIND.0.as_elems_unchecked(slice) }
+    }
+
+    /// Try to get a mutable reference to the underlying elements of a slice.
+    ///
+    /// For more detailed documentation, refer to the documentation for [`Slice::try_as_elems_mut`]
+    /// as implemented for `S`/`Self`.
+    ///
+    /// # Returns
+    ///
+    /// - Returns [`Ok`] upon success.
+    /// - Returns [`Err`] upon failure.
+    #[inline(always)]
+    #[track_caller]
+    pub const fn try_as_elems_mut['a, S](
+        slice: &'a mut S,
+    ) -> Result<&'a mut [S::Elem], AsElemsError<S>>
+    where (
+        S: Slice + ?Sized,
+    ) {
+        S::KIND.0.try_as_elems_mut(slice)
+    }
+
+    /// Get a mutable reference to the underlying elements of a slice.
+    ///
+    /// For more detailed documentation, refer to the documentation for [`Slice::as_elems_mut`]
+    /// as implemented for `S`/`Self`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if [`Slice::try_as_elems_mut`] fails.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub const fn as_elems_mut['a, S](
+        slice: &'a mut S,
+    ) -> &'a mut [S::Elem]
+    where (
+        S: Slice + ?Sized,
+    ) {
+        S::KIND.0.as_elems_mut(slice)
+    }
+
+    /// Get a mutable reference to the underlying elements of a slice without any checks.
+    ///
+    /// For more detailed documentation and safety info, refer to
+    /// the documentation for [`Slice::as_elems_mut_unchecked`] as implemented for `S`/`Self`.
+    ///
+    /// # Safety
+    ///
+    /// It is up to the caller to ensure that the invariants of [`Slice::as_elems_mut_unchecked`]
+    /// as implemented for `S`/`Self` are upheld. Failure to do so is *undefined behavior*.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub const unsafe fn as_elems_mut_unchecked['a, S](
+        slice: &'a mut S,
+    ) -> &'a mut [S::Elem]
+    where (
+        S: Slice + ?Sized,
+    ) {
+        // SAFETY: The caller ensures this is sound.
+        unsafe { S::KIND.0.as_elems_mut_unchecked(slice)  }
     }
 }
 
@@ -246,24 +478,31 @@ methods! {
 /// ***TODO***
 #[allow(clippy::missing_safety_doc)]
 pub unsafe trait Slice: private::Sealed {
-    /// An associated item detailing the underlying in-memory representation
-    /// of the implementor.
+    /// An associated type that "backs" the underlying in-memory representation of this slice type.
     ///
-    /// The length of implementor is equal to the almount of `Elem`s stored within it.
+    /// This *also* is how the length of a slice is determined. A slice's length, regardless of type,
+    /// is the *amount of elements it contains*.
     ///
     /// # Safety
     ///
-    /// The backing memory for this slice must be a valid `[Elem]`. No exceptions are made.
+    /// The underlying memory for any `Self` must be a valid `[Elem]`. No exceptions.
     ///
-    /// Therefore, `Self` must have the same alignment requirements as `[Elem]`, as well as
-    /// properly initialized for `[Elem]`.
+    /// This requires the following:
     ///
-    /// # Bit Validity
+    /// - The alignment requirements for `Self` and `[Elem]` must be the same.
+    /// - That the bit validity and initialization requirements of `Self` is
+    ///   at least as restrictive as `[Elem]`, but not any less restrictive.
     ///
-    /// While all `Self`s contain a `[Elem]`, not all `[Elem]`s are valid as a `Self`.
+    ///   For example, `[u8]` is the backing storage of all [`prim@str`]s, and
+    ///   much like a `[u8]`, all bytes must be initialized.
+    ///
+    ///   However, [`prim@str`] has further invariants. In order for some region
+    ///   of memory to be a valid [`prim@str`], it *must* be a valid `[u8]`, and
+    ///   be entirely comprised of well-formed UTF-8.
+    /// - Likely more, don't mess this up. Seriously.
     type Elem: Sized;
 
-    /// An error that is returned when trying to create a `Self` from some `[Elem]`.``
+    /// An error that is returned when trying to create a `Self` from some `[Elem]`.
     type FromElemsErr: 'static + Sized + fmt::Debug + fmt::Display;
 
     /// An error that is returned when trying to safely get a `[Elem]` from some `Self`.
@@ -279,38 +518,38 @@ pub unsafe trait Slice: private::Sealed {
     const KIND: SliceKind<Self>;
 
     #[doc = docs!(len)]
-    #[track_caller]
     #[must_use]
+    #[track_caller]
     fn len(&self) -> usize;
 
     #[doc = docs!(is_empty)]
-    #[track_caller]
     #[must_use]
+    #[track_caller]
     fn is_empty(&self) -> bool;
 
     #[doc = docs!(raw_slice)]
-    #[track_caller]
     #[must_use]
+    #[track_caller]
     fn raw_slice(data: *const Self::Elem, len: usize) -> *const Self;
 
     #[doc = docs!(raw_slice_mut)]
-    #[track_caller]
     #[must_use]
+    #[track_caller]
     fn raw_slice_mut(data: *mut Self::Elem, len: usize) -> *mut Self;
 
     #[doc = docs!(raw_slice_nonnull)]
-    #[track_caller]
     #[must_use]
+    #[track_caller]
     fn raw_slice_nonnull(data: NonNull<Self::Elem>, len: usize) -> NonNull<Self>;
 
     #[doc = docs!(from_raw_parts)]
-    #[track_caller]
     #[must_use]
+    #[track_caller]
     unsafe fn from_raw_parts<'a>(data: *const Self::Elem, len: usize) -> &'a Self;
 
     #[doc = docs!(from_raw_parts_mut)]
-    #[track_caller]
     #[must_use]
+    #[track_caller]
     unsafe fn from_raw_parts_mut<'a>(data: *mut Self::Elem, len: usize) -> &'a mut Self;
 
     #[doc = docs!(try_from_elems)]
@@ -322,6 +561,54 @@ pub unsafe trait Slice: private::Sealed {
     fn try_from_elems_mut<'a>(
         elems: &'a mut [Self::Elem],
     ) -> Result<&'a mut Self, FromElemsError<Self>>;
+
+    #[doc = docs!(from_elems)]
+    #[must_use]
+    #[track_caller]
+    fn from_elems<'a>(elems: &'a [Self::Elem]) -> &'a Self;
+
+    #[doc = docs!(from_elems_mut)]
+    #[must_use]
+    #[track_caller]
+    fn from_elems_mut<'a>(elems: &'a mut [Self::Elem]) -> &'a mut Self;
+
+    #[doc = docs!(from_elems_unchecked)]
+    #[must_use]
+    #[track_caller]
+    unsafe fn from_elems_unchecked<'a>(elems: &'a [Self::Elem]) -> &'a Self;
+
+    #[doc = docs!(from_elems_mut_unchecked)]
+    #[must_use]
+    #[track_caller]
+    unsafe fn from_elems_mut_unchecked<'a>(elems: &'a mut [Self::Elem]) -> &'a mut Self;
+
+    #[doc = docs!(try_as_elems)]
+    #[track_caller]
+    fn try_as_elems<'a>(&'a self) -> Result<&'a [Self::Elem], AsElemsError<Self>>;
+
+    #[doc = docs!(try_as_elems_mut)]
+    #[track_caller]
+    fn try_as_elems_mut<'a>(&'a mut self) -> Result<&'a mut [Self::Elem], AsElemsError<Self>>;
+
+    #[doc = docs!(as_elems)]
+    #[must_use]
+    #[track_caller]
+    fn as_elems<'a>(&'a self) -> &'a [Self::Elem];
+
+    #[doc = docs!(as_elems_mut)]
+    #[must_use]
+    #[track_caller]
+    fn as_elems_mut<'a>(&'a mut self) -> &'a mut [Self::Elem];
+
+    #[doc = docs!(as_elems_unchecked)]
+    #[must_use]
+    #[track_caller]
+    unsafe fn as_elems_unchecked<'a>(&'a self) -> &'a [Self::Elem];
+
+    #[doc = docs!(as_elems_mut_unchecked)]
+    #[must_use]
+    #[track_caller]
+    unsafe fn as_elems_mut_unchecked<'a>(&'a mut self) -> &'a mut [Self::Elem];
 }
 
 /// Gets a type or it's alternative, preferring the alternative.
@@ -456,6 +743,80 @@ macro_rules! slice {
                 #[track_caller]
                 fn try_from_elems_mut<'a>(elems: &'a mut [Self::Elem]) -> Result<&'a mut Self, FromElemsError<Self>> {
                     try_from_elems_mut(elems)
+                }
+
+                #[doc = self::$module::docs!(from_elems)]
+                #[inline(always)]
+                #[track_caller]
+                fn from_elems<'a>(elems: &'a [Self::Elem]) -> &'a Self {
+                    from_elems(elems)
+                }
+
+                #[doc = self::$module::docs!(from_elems_mut)]
+                #[inline(always)]
+                #[track_caller]
+                fn from_elems_mut<'a>(elems: &'a mut [Self::Elem]) -> &'a mut Self {
+                    from_elems_mut(elems)
+                }
+
+                #[doc = self::$module::docs!(from_elems_unchecked)]
+                #[inline(always)]
+                #[track_caller]
+                unsafe fn from_elems_unchecked<'a>(elems: &'a [Self::Elem]) -> &'a Self {
+                    // SAFETY: The caller ensures this is safe.
+                    unsafe { from_elems_unchecked(elems) }
+                }
+
+                #[doc = self::$module::docs!(from_elems_mut_unchecked)]
+                #[inline(always)]
+                #[track_caller]
+                unsafe fn from_elems_mut_unchecked<'a>(elems: &'a mut [Self::Elem]) -> &'a mut Self {
+                    // SAFETY: The caller ensures this is safe.
+                    unsafe { from_elems_mut_unchecked(elems) }
+                }
+
+                #[doc = self::$module::docs!(try_as_elems)]
+                #[inline(always)]
+                #[track_caller]
+                fn try_as_elems<'a>(&'a self) -> Result<&'a [Self::Elem], AsElemsError<Self>> {
+                    try_as_elems(self)
+                }
+
+                #[doc = self::$module::docs!(try_as_elems_mut)]
+                #[inline(always)]
+                #[track_caller]
+                fn try_as_elems_mut<'a>(&'a mut self) -> Result<&'a mut [Self::Elem], AsElemsError<Self>> {
+                    try_as_elems_mut(self)
+                }
+
+                #[doc = self::$module::docs!(as_elems)]
+                #[inline(always)]
+                #[track_caller]
+                fn as_elems<'a>(&'a self) -> &'a [Self::Elem] {
+                    as_elems(self)
+                }
+
+                #[doc = self::$module::docs!(as_elems_mut)]
+                #[inline(always)]
+                #[track_caller]
+                fn as_elems_mut<'a>(&'a mut self) -> &'a mut [Self::Elem] {
+                    as_elems_mut(self)
+                }
+
+                #[doc = self::$module::docs!(as_elems_unchecked)]
+                #[inline(always)]
+                #[track_caller]
+                unsafe fn as_elems_unchecked<'a>(&'a self) -> &'a [Self::Elem] {
+                    // SAFETY: The caller ensures this is safe.
+                    unsafe { as_elems_unchecked(self) }
+                }
+
+                #[doc = self::$module::docs!(as_elems_mut_unchecked)]
+                #[inline(always)]
+                #[track_caller]
+                unsafe fn as_elems_mut_unchecked<'a>(&'a mut self) -> &'a mut [Self::Elem] {
+                    // SAFETY: The caller ensures this is safe.
+                    unsafe { as_elems_mut_unchecked(self) }
                 }
             }
         )+
@@ -670,8 +1031,7 @@ macro_rules! slice {
                             .wrap_result(slice.wrap_from_elems_error())
                             .uncoerce(
                                 self::$module::try_from_elems(
-                                    elem
-                                        .coerce_slice(elems),
+                                    elem.coerce_slice(elems),
                                 ),
                             ),
                     )*
@@ -694,8 +1054,7 @@ macro_rules! slice {
                             .wrap_result(slice.wrap_from_elems_error())
                             .uncoerce(
                                 self::$module::try_from_elems_mut(
-                                    elem
-                                        .coerce_slice_mut(elems),
+                                    elem.coerce_slice_mut(elems),
                                 ),
                             ),
                     )*
@@ -703,6 +1062,7 @@ macro_rules! slice {
             }
 
             #[inline(always)]
+            #[must_use]
             #[track_caller]
             const fn from_elems<'a>(
                 self,
@@ -714,11 +1074,9 @@ macro_rules! slice {
                         Self::$variant {
                             slice, elem, ..
                         } => slice
-                            .wrap_ref()
-                            .uncoerce(
+                            .uncoerce_ref(
                                 self::$module::from_elems(
-                                    elem
-                                        .coerce_slice(elems),
+                                    elem.coerce_slice(elems),
                                 ),
                             ),
                     )*
@@ -726,6 +1084,7 @@ macro_rules! slice {
             }
 
             #[inline(always)]
+            #[must_use]
             #[track_caller]
             const fn from_elems_mut<'a>(
                 self,
@@ -737,11 +1096,9 @@ macro_rules! slice {
                         Self::$variant {
                             slice, elem, ..
                         } => slice
-                            .wrap_mut()
-                            .uncoerce(
+                            .uncoerce_mut(
                                 self::$module::from_elems_mut(
-                                    elem
-                                        .coerce_slice_mut(elems),
+                                    elem.coerce_slice_mut(elems),
                                 ),
                             ),
                     )*
@@ -749,6 +1106,7 @@ macro_rules! slice {
             }
 
             #[inline(always)]
+            #[must_use]
             #[track_caller]
             const unsafe fn from_elems_unchecked<'a>(
                 self,
@@ -762,8 +1120,7 @@ macro_rules! slice {
                         } => slice
                             .uncoerce_ref(unsafe {
                                 self::$module::from_elems_unchecked(
-                                    elem
-                                        .coerce_slice(elems),
+                                    elem.coerce_slice(elems),
                                 )
                             }),
                     )*
@@ -771,6 +1128,7 @@ macro_rules! slice {
             }
 
             #[inline(always)]
+            #[must_use]
             #[track_caller]
             const unsafe fn from_elems_mut_unchecked<'a>(
                 self,
@@ -784,8 +1142,153 @@ macro_rules! slice {
                         } => slice
                             .uncoerce_mut(unsafe {
                                 self::$module::from_elems_mut_unchecked(
-                                    elem
-                                        .coerce_slice_mut(elems),
+                                    elem.coerce_slice_mut(elems),
+                                )
+                            }),
+                    )*
+                }
+            }
+
+            #[inline(always)]
+            #[track_caller]
+            const fn try_as_elems<'a>(
+                self,
+                slice: &'a S,
+            ) -> Result<&'a [S::Elem], AsElemsError<S>> {
+                let this = slice;
+                match self {
+                    $(
+                        $(#[cfg($($cfg)*)])*
+                        Self::$variant {
+                            slice, elem, ..
+                        } => elem
+                            .wrap_slice()
+                            .wrap_ref()
+                            .wrap_result(slice.wrap_as_elems_error())
+                            .uncoerce(
+                                self::$module::try_as_elems(
+                                    slice.coerce_ref(this),
+                                ),
+                            ),
+                    )*
+                }
+            }
+
+            #[inline(always)]
+            #[must_use]
+            #[track_caller]
+            const fn as_elems<'a>(
+                self,
+                slice: &'a S,
+            ) -> &'a [S::Elem] {
+                let this = slice;
+
+                match self {
+                    $(
+                        $(#[cfg($($cfg)*)])*
+                        Self::$variant {
+                            slice, elem, ..
+                        } => elem
+                            .uncoerce_slice(
+                                self::$module::as_elems(
+                                    slice.coerce_ref(this),
+                                ),
+                            ),
+                    )*
+                }
+            }
+
+            #[inline(always)]
+            #[must_use]
+            #[track_caller]
+            const unsafe fn as_elems_unchecked<'a>(
+                self,
+                slice: &'a S,
+            ) -> &'a [S::Elem] {
+                let this = slice;
+                match self {
+                    $(
+                        $(#[cfg($($cfg)*)])*
+                        Self::$variant {
+                            slice, elem, ..
+                        } => elem
+                            .uncoerce_slice(unsafe {
+                                self::$module::as_elems_unchecked(
+                                    slice.coerce_ref(this),
+                                )
+                            }),
+                    )*
+                }
+            }
+
+            #[inline(always)]
+            #[track_caller]
+            const fn try_as_elems_mut<'a>(
+                self,
+                slice: &'a mut S,
+            ) -> Result<&'a mut [S::Elem], AsElemsError<S>> {
+                let this = slice;
+
+                match self {
+                    $(
+                        $(#[cfg($($cfg)*)])*
+                        Self::$variant {
+                            slice, elem, ..
+                        } => elem
+                            .wrap_slice()
+                            .wrap_mut()
+                            .wrap_result(slice.wrap_as_elems_error())
+                            .uncoerce(
+                                self::$module::try_as_elems_mut(
+                                    slice.coerce_mut(this),
+                                ),
+                            ),
+                    )*
+                }
+            }
+
+            #[inline(always)]
+            #[must_use]
+            #[track_caller]
+            const fn as_elems_mut<'a>(
+                self,
+                slice: &'a mut S,
+            ) -> &'a mut [S::Elem] {
+                let this = slice;
+
+                match self {
+                    $(
+                        $(#[cfg($($cfg)*)])*
+                        Self::$variant {
+                            slice, elem, ..
+                        } => elem
+                            .uncoerce_slice_mut(
+                                self::$module::as_elems_mut(
+                                    slice.coerce_mut(this),
+                                ),
+                            ),
+                    )*
+                }
+            }
+
+            #[inline(always)]
+            #[must_use]
+            #[track_caller]
+            const unsafe fn as_elems_mut_unchecked<'a>(
+                self,
+                slice: &'a mut S,
+            ) -> &'a mut [S::Elem] {
+                let this = slice;
+
+                match self {
+                    $(
+                        $(#[cfg($($cfg)*)])*
+                        Self::$variant {
+                            slice, elem, ..
+                        } => elem
+                            .uncoerce_slice_mut(unsafe {
+                                self::$module::as_elems_mut_unchecked(
+                                    slice.coerce_mut(this),
                                 )
                             }),
                     )*

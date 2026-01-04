@@ -4,7 +4,7 @@ use core::{
     slice,
 };
 
-use crate::slice::FromElemsError;
+use crate::slice::{AsElemsError, FromElemsError};
 
 methods! {
     /// Returns the provided slice's length.
@@ -51,7 +51,7 @@ methods! {
     ///
     /// # Safety
     ///
-    /// ***TODO***
+    /// See [`core::slice::from_raw_parts`].
     #[inline(always)]
     #[must_use]
     #[track_caller]
@@ -64,7 +64,7 @@ methods! {
     ///
     /// # Safety
     ///
-    /// ***TODO***
+    /// See [`core::slice::from_raw_parts_mut`].
     #[inline(always)]
     #[must_use]
     #[track_caller]
@@ -139,6 +139,74 @@ methods! {
     #[inline(always)]
     pub(crate) const fn try_from_elems_mut['a, T](elems: &'a mut [T]) -> Result<&'a mut [T], FromElemsError<[T]>> {
         Ok(elems)
+    }
+
+    /// Try to create a slice from itself.
+    ///
+    /// # Returns
+    ///
+    /// Always returns `Ok(slice)`.
+    #[inline(always)]
+    pub(crate) const fn try_as_elems['a, T](slice: &'a [T]) -> Result<&'a [T], AsElemsError<[T]>> {
+        Ok(slice)
+    }
+
+    /// Create a slice from itself.
+    ///
+    /// # Returns
+    ///
+    /// Always returns `slice`.
+    #[inline(always)]
+    pub(crate) const fn as_elems['a, T](slice: &'a [T]) -> &'a [T] {
+        slice
+    }
+
+    /// Create a slice from itself without any checks.
+    ///
+    /// # Returns
+    ///
+    /// Always returns `slice`.
+    ///
+    /// # Safety
+    ///
+    /// This is always safe to call.
+    #[inline(always)]
+    pub(crate) const unsafe fn as_elems_unchecked['a, T](slice: &'a [T]) -> &'a [T] {
+        slice
+    }
+
+    /// Try to create a mutable slice from itself.
+    ///
+    /// # Returns
+    ///
+    /// Always returns `Ok(slice)`.
+    #[inline(always)]
+    pub(crate) const fn try_as_elems_mut['a, T](slice: &'a mut [T]) -> Result<&'a mut [T], AsElemsError<[T]>> {
+        Ok(slice)
+    }
+
+    /// Create a mutable slice from itself.
+    ///
+    /// # Returns
+    ///
+    /// Always returns `slice`.
+    #[inline(always)]
+    pub(crate) const fn as_elems_mut['a, T](slice: &'a mut [T]) -> &'a mut [T] {
+        slice
+    }
+
+    /// Create a mutable slice from itself without any checks.
+    ///
+    /// # Returns
+    ///
+    /// Always returns `slice`.
+    ///
+    /// # Safety
+    ///
+    /// This is always safe to call.
+    #[inline(always)]
+    pub(crate) const unsafe fn as_elems_mut_unchecked['a, T](slice: &'a mut [T]) -> &'a mut [T] {
+        slice
     }
 
     /// This function is impossible to call. Don't even try.
