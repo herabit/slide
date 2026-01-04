@@ -5,7 +5,7 @@
 //! 1. The [typewit](https://github.com/rodrimati1992/typewit/) crate.
 //! 2. The [type-equalities](https://github.com/WorldSEnder/type-equalities-rs) crate.
 //!
-//! For the [`invariance`] module, it comes from the
+//! For the [`variance`] module, it comes from the
 //! [Phantom Variance Markers](https://github.com/rust-lang/rust/issues/135806) rust issue,
 //! which as of writing is not yet stable.
 //!
