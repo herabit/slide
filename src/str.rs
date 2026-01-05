@@ -1,6 +1,9 @@
 use core::ops::Range;
 
-use crate::macros::{assert_unchecked, unreachable_unchecked};
+use crate::{
+    macros::{assert_unchecked, unreachable_unchecked},
+    slice::{SplitError, StrSplitError},
+};
 
 /// Returns whether a given byte is a UTF-8 character boundary.
 ///
@@ -8,8 +11,9 @@ use crate::macros::{assert_unchecked, unreachable_unchecked};
 ///
 /// For sources that aren't UTF-8, this may return false positives,
 /// but will never return false negatives.
-#[inline(always)]
+#[inline]
 #[must_use]
+#[allow(dead_code)]
 pub const fn is_utf8_char_boundary(byte: u8) -> bool {
     // Is it ascii (`0x00..=0x7F`) or are the leading two bits set to one (`0xC0..=0xFF`).
     matches!(byte, 0x00..=0x7F | 0xC0..=0xFF)
@@ -18,8 +22,9 @@ pub const fn is_utf8_char_boundary(byte: u8) -> bool {
 /// Why? Why not? Mainly just to flex my stupidity when, in reality, it does not matter like, at all.
 ///
 /// See [`str::floor_char_boundary`] for details.
-#[inline(always)]
+#[inline]
 #[must_use]
+#[allow(dead_code)]
 pub const fn floor_char_boundary(s: &str, index: usize) -> usize {
     let new_index = if index >= s.len() {
         s.len()
@@ -86,43 +91,55 @@ pub const fn floor_char_boundary(s: &str, index: usize) -> usize {
     new_index
 }
 
-// #[inline(always)]
-// #[must_use]
-// #[allow(clippy::let_and_return)]
-// pub const fn ceil_char_boundary(s: &str, index: usize) -> usize {
-//     let new_index = if index >= s.len() { s.len() } else { todo!() };
-
-//     new_index
-// }
-
-// #[inline(always)]
-// #[must_use]
-// #[unsafe(no_mangle)]
-// #[allow(clippy::let_and_return)]
-// pub const fn ceil_char_boundary(s: &str, index: usize) -> usize {
-//     let new_index = if index >= s.len() {
-//         s.len()
-//     } else {
-//         let max_len = match s.len().checked_sub(index).unwrap() {
-//             0 => unreachable!(),
-//             len @ 1..4 => len,
-//             4.. => 4,
-//         };
-
-//         // SAFETY: We never increase the size of the maximum length more than `s.len()`.
-//         unsafe {
-//             assert_unchecked!(
-//                 index.checked_add(max_len).is_some(),
-//                 "`max_len` is out of bounds",
-//             )
-//         };
-//         // SAFETY: `max_len <= s.len() - index` is always true.
-//         unsafe { assert_unchecked!(index + max_len <= s.len(), "`max_len` is out of bounds") };
-
-//         let range = index..index.checked_add(max_len).unwrap();
-
-//         range.end
-//     };
-
-//     new_index
-// }
+/// Determine whether the specified index lies on a valid UTF-8 character boundary.
+///
+/// In other words, whether it is sound to split a string at the given index.
+///
+/// # Returns
+///
+/// - `Ok(())` upon success.
+/// - `Err(SplitError::OutOfBounds { .. })` if `index` is out of bounds.
+/// - `Err(SplitError::Other(StrSplitError::InvalidCharBoundary))` if the
+///   the byte at `index` is not a valid UTF-8 character boundary.
+/// # Safety
+///
+/// The results of this function can be safely relied on to determine whether it is
+/// safe to split a string at an index.
+#[inline]
+#[allow(clippy::collapsible_else_if)]
+pub const fn is_char_boundary(s: &str, index: usize) -> Result<(), SplitError<str>> {
+    if index == 0 {
+        // It is always sound to get s[0..] for a string.
+        //
+        // This helps to avoid reading string data, and in some cases omitting
+        // the following validity checks entirely.
+        Ok(())
+    } else if index >= s.len() {
+        // We have a nested branch here to assist with optimizations. It's annoying,
+        // but, necessary.
+        if index == s.len() {
+            // Getting an empty string is always sound.
+            Ok(())
+        } else {
+            // If `index >= s.len()` and `index != s.len()` hold true,
+            // then `index > s.len()`, and is therefore out of bounds.
+            Err(SplitError::OutOfBounds {
+                index,
+                len: s.len(),
+            })
+        }
+    } else {
+        // Due to the above branch, the bounds check here is omitted.
+        if is_utf8_char_boundary(s.as_bytes()[index]) {
+            // Since `index` is in bounds, and is a valid UTF-8 character boundary,
+            // it is safe to split at this index.
+            Ok(())
+        } else {
+            // It is *not* a valid UTF-8 character boundary, and it is therefore
+            // *not* sound to split at this index, despite it being within bounds.
+            Err(SplitError::Other(StrSplitError::InvalidCharBoundary {
+                index,
+            }))
+        }
+    }
+}

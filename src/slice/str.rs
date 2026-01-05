@@ -7,7 +7,8 @@ use core::{
 
 use crate::{
     macros::unreachable_unchecked,
-    slice::{AsElemsError, FromElemsError},
+    slice::{AsElemsError, FromElemsError, SplitError},
+    str::is_char_boundary,
 };
 
 methods! {
@@ -267,6 +268,146 @@ methods! {
         unsafe { slice.as_bytes_mut() }
     }
 
+    /// Try to split a string at the given index.
+    ///
+    /// # Returns
+    ///
+    /// - `Ok((head, tail))` upon success.
+    /// - `Err(SplitError::OutOfBounds { .. })` if `index` is out of bounds.
+    /// - `Err(SplitError::Other(StrSplitError::InvalidCharBoundary))` if the
+    ///   the byte at `index` is not a valid UTF-8 character boundary.
+    #[inline]
+    pub(crate) const fn try_split['a](slice: &'a str, index: usize) -> Result<(&'a str, &'a str), SplitError<str>> {
+        match is_char_boundary(slice, index) {
+            // SAFETY: We know that it is safe to split at `index`.
+            Ok(()) => Ok(unsafe { split_unchecked(slice, index) }),
+            Err(err) => Err(err),
+        }
+    }
+
+    /// Try to split a mutable string at the given index.
+    ///
+    /// # Returns
+    ///
+    /// - `Ok((head, tail))` upon success.
+    /// - `Err(SplitError::OutOfBounds { .. })` if `index` is out of bounds.
+    /// - `Err(SplitError::Other(StrSplitError::InvalidCharBoundary))` if the
+    ///   the byte at `index` is not a valid UTF-8 character boundary.
+    #[inline(always)]
+    pub(crate) const fn try_split_mut['a](slice: &'a mut str, index: usize) -> Result<(&'a mut str, &'a mut str), SplitError<str>> {
+        match is_char_boundary(slice, index) {
+            // SAFETY: We know that is is safe to split at `index`.
+            Ok(()) => Ok(unsafe { split_mut_unchecked(slice, index) }),
+            Err(err) => Err(err),
+        }
+    }
+
+    /// Split a string at the given index.
+    ///
+    /// # Panics
+    ///
+    /// - If `index` is out of bounds.
+    /// - If the byte at `index` is not a valid UTF-8 character boundary.
+    ///
+    /// # Returns
+    ///
+    /// Returns a tuple of `(head, tail)`.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub(crate) const fn split['a](slice: &'a str, index: usize) -> (&'a str, &'a str) {
+        match is_char_boundary(slice, index) {
+            // SAFETY: We checked that it is valid to split at `index`.
+            Ok(()) => unsafe { split_unchecked(slice, index) },
+            // SAFETY: We know that it is invalid to split at `index`.
+            Err(..) => unsafe { split_error(slice, index) },
+        }
+    }
+
+    /// Split a mutable string at the given index.
+    ///
+    /// # Panics
+    ///
+    /// - If `index` is out of bounds.
+    /// - If the byte at `index` is not a valid UTF-8 character boundary.
+    ///
+    /// # Returns
+    ///
+    /// Returns a tuple of `(head, tail)`.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub(crate) const fn split_mut['a](slice: &'a mut str, index: usize) -> (&'a mut str, &'a mut str) {
+        match is_char_boundary(slice, index) {
+            // SAFETY: We checked that it is valid to split at `index`.
+            Ok(()) => unsafe { split_mut_unchecked(slice, index) },
+            // SAFETY: We know that it is invalid to split at `index`.
+            Err(..) => unsafe { split_error(slice, index) },
+        }
+    }
+
+    /// Split a string at the given index without any checks.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure the following, or *undefined behavior* will be invoked:
+    ///
+    /// - That `index` is within bounds.
+    /// - That the byte at `index` is a valid UTF-8 character boundary.
+    ///
+    /// # Returns
+    ///
+    /// Returns a tuple of `(head, tail)`.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub(crate) const unsafe fn split_unchecked['a](slice: &'a str, index: usize) -> (&'a str, &'a str) {
+        let len = slice.len();
+        let ptr = slice.as_ptr();
+
+        // SAFETY: The caller ensures that `index` is in bounds and a valid UTF-8 character boundary,
+        //         so splitting at `index` is valid.
+        let (head, tail) = unsafe {
+            let head = from_raw_parts(ptr, index);
+            let tail = from_raw_parts(ptr.add(index), len.unchecked_sub(index));
+
+            (head, tail)
+        };
+
+        (head, tail)
+    }
+
+    /// Split a mutable string at the given index without any checks.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure the following, or *undefined behavior* will be invoked:
+    ///
+    /// - That `index` is within bounds.
+    /// - That the byte at `index` is a valid UTF-8 character boundary.
+    ///
+    /// # Returns
+    ///
+    /// Return a tuple of `(head, tail)`.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub(crate) const unsafe fn split_mut_unchecked['a](slice: &'a mut str, index: usize) -> (&'a mut str, &'a mut str) {
+        let len = slice.len();
+        let ptr = slice.as_mut_ptr();
+
+        // SAFETY: The caller ensures that `index` is in bounds and a valid UTF-8 character boundary,
+        //         so splitting at `index` is valid.
+        let (head, tail) = unsafe {
+            let head = from_raw_parts_mut(ptr, index);
+            let tail = from_raw_parts_mut(ptr.add(index), len.unchecked_sub(index));
+
+            (head, tail)
+        };
+
+        (head, tail)
+    }
+
     /// Panics with an error message for the given [`Utf8Error`](::core::str::Utf8Error).
     #[inline(always)]
     #[track_caller]
@@ -459,4 +600,23 @@ impl core::error::Error for StrSplitError {
     fn description(&self) -> &str {
         "the byte at the specified index is not a valid UTF-8 character boundary"
     }
+}
+
+/// Panics with en error corresponding to `slice`. This primarily exists to get better codegen
+/// for panicking slice functions.
+///
+/// # Safety
+///
+/// The caller ***must ensure*** that it is ***actually invalid*** to get an error from `slice`
+/// when trying to split at the provided index. Failure to do so is *undefined behavior*.
+#[track_caller]
+#[inline(never)]
+#[cold]
+const unsafe fn split_error(slice: &str, index: usize) -> ! {
+    let Err(err) = is_char_boundary(slice, index) else {
+        // SAFETY: The caller ensures that this is valid.
+        unsafe { unreachable_unchecked!("it is valid to split `slice` at `index`") }
+    };
+
+    err.panic()
 }

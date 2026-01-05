@@ -16,7 +16,6 @@ where
     S: Slice + ?Sized,
 {
     /// Panics with an error message corresponding to this error.
-    #[inline]
     #[track_caller]
     #[cold]
     pub const fn panic(self) -> ! {
@@ -33,7 +32,6 @@ where
     /// optimizations are valid.
     ///
     /// Proceed with caution.
-    #[cfg_attr(debug_assertions, inline)]
     #[cfg_attr(not(debug_assertions), inline(always))]
     #[track_caller]
     #[cold]
@@ -174,7 +172,6 @@ where
     S: Slice + ?Sized,
 {
     /// Panics with an error message corresponding to this error.
-    #[inline]
     #[track_caller]
     #[cold]
     pub const fn panic(self) -> ! {
@@ -191,7 +188,6 @@ where
     /// optimizations are valid.
     ///
     /// Proceed with caution.
-    #[cfg_attr(debug_assertions, inline)]
     #[cfg_attr(not(debug_assertions), inline(always))]
     #[track_caller]
     #[cold]
@@ -319,7 +315,6 @@ where
     S: Slice + ?Sized,
 {
     /// Panics with an error message corresponding to this error.
-    #[inline]
     #[track_caller]
     #[cold]
     pub const fn panic(self) -> ! {
@@ -339,7 +334,6 @@ where
     /// optimizations are valid.
     ///
     /// Proceed with caution.
-    #[cfg_attr(debug_assertions, inline)]
     #[cfg_attr(not(debug_assertions), inline(always))]
     #[track_caller]
     #[cold]

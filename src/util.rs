@@ -10,14 +10,16 @@ pub(crate) const unsafe fn needs_unsafe<T>(x: T) -> T {
 /// Marks a given code path as cold.
 #[inline(always)]
 #[cold]
-pub(crate) const fn cold() {}
+pub(crate) const fn cold<T>(x: T) -> T {
+    x
+}
 
 /// Marks a condition as unlikely.
 #[inline(always)]
 #[must_use]
 pub(crate) const fn unlikely(cond: bool) -> bool {
     if cond {
-        cold();
+        cold(());
     }
 
     cond
@@ -28,7 +30,7 @@ pub(crate) const fn unlikely(cond: bool) -> bool {
 #[must_use]
 pub(crate) const fn likely(cond: bool) -> bool {
     if !cond {
-        cold();
+        cold(());
     }
 
     cond
