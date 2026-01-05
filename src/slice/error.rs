@@ -18,6 +18,7 @@ where
     /// Panics with an error message corresponding to this error.
     #[track_caller]
     #[cold]
+    #[inline(never)]
     pub const fn panic(self) -> ! {
         S::KIND.0.handle_from_elems_error(self.0)
     }
@@ -32,9 +33,10 @@ where
     /// optimizations are valid.
     ///
     /// Proceed with caution.
-    #[cfg_attr(not(debug_assertions), inline(always))]
     #[track_caller]
     #[cold]
+    #[cfg_attr(debug_assertions, inline(never))]
+    #[cfg_attr(not(debug_assertions), inline(always))]
     pub const unsafe fn panic_unchecked(self) -> ! {
         // SAFETY: The caller ensures it is impossible to reach this code.
         unsafe { S::KIND.0.handle_from_elems_error_unchecked(self.0) }
@@ -174,6 +176,7 @@ where
     /// Panics with an error message corresponding to this error.
     #[track_caller]
     #[cold]
+    #[inline(never)]
     pub const fn panic(self) -> ! {
         S::KIND.0.handle_as_elems_error(self.0)
     }
@@ -188,9 +191,10 @@ where
     /// optimizations are valid.
     ///
     /// Proceed with caution.
-    #[cfg_attr(not(debug_assertions), inline(always))]
     #[track_caller]
     #[cold]
+    #[cfg_attr(debug_assertions, inline(never))]
+    #[cfg_attr(not(debug_assertions), inline(always))]
     pub const unsafe fn panic_unchecked(self) -> ! {
         // SAFETY: The caller ensures it is impossible to reach this code.
         unsafe { S::KIND.0.handle_as_elems_error_unchecked(self.0) }
@@ -317,6 +321,7 @@ where
     /// Panics with an error message corresponding to this error.
     #[track_caller]
     #[cold]
+    #[inline(never)]
     pub const fn panic(self) -> ! {
         match self {
             SplitError::OutOfBounds { .. } => panic!("index is out of bounds: `index >= len`"),
@@ -334,9 +339,10 @@ where
     /// optimizations are valid.
     ///
     /// Proceed with caution.
-    #[cfg_attr(not(debug_assertions), inline(always))]
     #[track_caller]
     #[cold]
+    #[cfg_attr(debug_assertions, inline(never))]
+    #[cfg_attr(not(debug_assertions), inline(always))]
     pub const unsafe fn panic_unchecked(self) -> ! {
         // SAFETY: The caller ensures it is imppossible to reach this code.
         match self {
