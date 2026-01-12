@@ -1,7 +1,11 @@
 //! A crate for sliding across buffers :3
 
 #![cfg_attr(not(test), no_std)]
-#![allow(clippy::needless_lifetimes, clippy::wrong_self_convention)]
+#![allow(
+    clippy::needless_lifetimes,
+    clippy::wrong_self_convention,
+    rustdoc::redundant_explicit_links
+)]
 #![warn(clippy::missing_docs_in_private_items)]
 
 #[cfg(feature = "alloc")]

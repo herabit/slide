@@ -1,15 +1,15 @@
 //! # Where a lot of these ideas come from:
 //!
-//! For [`TypeEq`] and the [`type_fn`] module, I'm borrowing a lot from:
+//! For [`TypeEq`](crate::marker::TypeEq) and the [`type_fn`](crate::marker::type_fn) module, I'm borrowing a lot from:
 //!
 //! 1. The [typewit](https://github.com/rodrimati1992/typewit/) crate.
 //! 2. The [type-equalities](https://github.com/WorldSEnder/type-equalities-rs) crate.
 //!
-//! For the [`variance`] module, it comes from the
+//! For the [`variance`](crate::marker::variance) module, it comes from the
 //! [Phantom Variance Markers](https://github.com/rust-lang/rust/issues/135806) rust issue,
 //! which as of writing is not yet stable.
 //!
-//! We implement these newtypes instead of directly using [`PhantomData`],
+//! We implement these newtypes instead of directly using [`PhantomData`](core::marker::PhantomData),
 //! as it's kinda hard to reason about variance rules without looking at
 //! some table, and these newtypes provide a simpler interface for understanding
 //! what the hell is actually being said.
@@ -60,7 +60,10 @@ where
     /// Create a proof that `Src == NewDest` given that `Src == Dest && Dest == NewDest`.
     #[inline(always)]
     #[must_use]
-    pub(crate) const fn join<NewDest>(self, _: TypeEq<Dest, NewDest>) -> TypeEq<Src, NewDest>
+    pub(crate) const fn join<NewDest>(
+        self,
+        _: TypeEq<Dest, NewDest>,
+    ) -> TypeEq<Src, NewDest>
     where
         NewDest: ?Sized,
     {
@@ -101,7 +104,10 @@ where
     /// some `F`.
     #[inline(always)]
     #[must_use]
-    pub(crate) const fn apply<F>(self, func: F) -> TypeEq<Call<F, Src>, Call<F, Dest>>
+    pub(crate) const fn apply<F>(
+        self,
+        func: F,
+    ) -> TypeEq<Call<F, Src>, Call<F, Dest>>
     where
         F: Func<Src> + Func<Dest>,
     {
@@ -114,7 +120,10 @@ where
     /// some `F`.
     #[inline(always)]
     #[must_use]
-    pub(crate) const fn unapply<F>(self, func: F) -> TypeEq<Uncall<F, Src>, Uncall<F, Dest>>
+    pub(crate) const fn unapply<F>(
+        self,
+        func: F,
+    ) -> TypeEq<Uncall<F, Src>, Uncall<F, Dest>>
     where
         F: RevFunc<Src> + RevFunc<Dest>,
     {
@@ -185,7 +194,10 @@ where
     #[inline(always)]
     #[must_use]
     #[track_caller]
-    pub(crate) const fn coerce_ref<'a>(self, src: &'a Src) -> &'a Dest {
+    pub(crate) const fn coerce_ref<'a>(
+        self,
+        src: &'a Src,
+    ) -> &'a Dest {
         self.wrap_ref().coerce(src)
     }
 
@@ -193,7 +205,10 @@ where
     #[inline(always)]
     #[must_use]
     #[track_caller]
-    pub(crate) const fn coerce_mut<'a>(self, src: &'a mut Src) -> &'a mut Dest {
+    pub(crate) const fn coerce_mut<'a>(
+        self,
+        src: &'a mut Src,
+    ) -> &'a mut Dest {
         self.wrap_mut().coerce(src)
     }
 
@@ -201,7 +216,10 @@ where
     #[inline(always)]
     #[must_use]
     #[track_caller]
-    pub(crate) const fn coerce_ptr(self, src: *const Src) -> *const Dest {
+    pub(crate) const fn coerce_ptr(
+        self,
+        src: *const Src,
+    ) -> *const Dest {
         self.wrap_ptr().coerce(src)
     }
 
@@ -209,7 +227,10 @@ where
     #[inline(always)]
     #[must_use]
     #[track_caller]
-    pub(crate) const fn coerce_ptr_mut(self, src: *mut Src) -> *mut Dest {
+    pub(crate) const fn coerce_ptr_mut(
+        self,
+        src: *mut Src,
+    ) -> *mut Dest {
         self.wrap_ptr_mut().coerce(src)
     }
 
@@ -217,7 +238,10 @@ where
     #[inline(always)]
     #[must_use]
     #[track_caller]
-    pub(crate) const fn coerce_nonnull(self, src: NonNull<Src>) -> NonNull<Dest> {
+    pub(crate) const fn coerce_nonnull(
+        self,
+        src: NonNull<Src>,
+    ) -> NonNull<Dest> {
         self.wrap_nonnull().coerce(src)
     }
 
@@ -225,7 +249,10 @@ where
     #[inline(always)]
     #[must_use]
     #[track_caller]
-    pub(crate) const fn uncoerce_ref<'a>(self, dest: &'a Dest) -> &'a Src {
+    pub(crate) const fn uncoerce_ref<'a>(
+        self,
+        dest: &'a Dest,
+    ) -> &'a Src {
         self.wrap_ref().uncoerce(dest)
     }
 
@@ -233,7 +260,10 @@ where
     #[inline(always)]
     #[must_use]
     #[track_caller]
-    pub(crate) const fn uncoerce_mut<'a>(self, dest: &'a mut Dest) -> &'a mut Src {
+    pub(crate) const fn uncoerce_mut<'a>(
+        self,
+        dest: &'a mut Dest,
+    ) -> &'a mut Src {
         self.wrap_mut().uncoerce(dest)
     }
 
@@ -241,7 +271,10 @@ where
     #[inline(always)]
     #[must_use]
     #[track_caller]
-    pub(crate) const fn uncoerce_ptr(self, dest: *const Dest) -> *const Src {
+    pub(crate) const fn uncoerce_ptr(
+        self,
+        dest: *const Dest,
+    ) -> *const Src {
         self.wrap_ptr().uncoerce(dest)
     }
 
@@ -249,7 +282,10 @@ where
     #[inline(always)]
     #[must_use]
     #[track_caller]
-    pub(crate) const fn uncoerce_ptr_mut(self, dest: *mut Dest) -> *mut Src {
+    pub(crate) const fn uncoerce_ptr_mut(
+        self,
+        dest: *mut Dest,
+    ) -> *mut Src {
         self.wrap_ptr_mut().uncoerce(dest)
     }
 
@@ -257,7 +293,10 @@ where
     #[inline(always)]
     #[must_use]
     #[track_caller]
-    pub(crate) const fn uncoerce_nonnull(self, dest: NonNull<Dest>) -> NonNull<Src> {
+    pub(crate) const fn uncoerce_nonnull(
+        self,
+        dest: NonNull<Dest>,
+    ) -> NonNull<Src> {
         self.wrap_nonnull().uncoerce(dest)
     }
 }
@@ -280,7 +319,10 @@ impl<Src, Dest> TypeEq<Src, Dest> {
     #[inline(always)]
     #[must_use]
     #[track_caller]
-    pub(crate) const fn compiler_hints<T>(self, value: T) -> T {
+    pub(crate) const fn compiler_hints<T>(
+        self,
+        value: T,
+    ) -> T {
         // SAFETY: `Src == Dest`, therefore they have the same size, alignment, and layout niches.
         unsafe {
             assert_layout_unchecked!(
@@ -318,7 +360,10 @@ impl<Src, Dest> TypeEq<Src, Dest> {
     #[inline(always)]
     #[must_use]
     #[track_caller]
-    pub(crate) const fn coerce(self, src: Src) -> Dest {
+    pub(crate) const fn coerce(
+        self,
+        src: Src,
+    ) -> Dest {
         // SAFETY: `Src == Dest`.
         self.compiler_hints(unsafe { crate::mem::transmute_unchecked(src) })
     }
@@ -327,7 +372,10 @@ impl<Src, Dest> TypeEq<Src, Dest> {
     #[inline(always)]
     #[must_use]
     #[track_caller]
-    pub(crate) const fn coerce_slice<'a>(self, src: &'a [Src]) -> &'a [Dest] {
+    pub(crate) const fn coerce_slice<'a>(
+        self,
+        src: &'a [Src],
+    ) -> &'a [Dest] {
         self.wrap_slice().coerce_ref(src)
     }
 
@@ -335,7 +383,10 @@ impl<Src, Dest> TypeEq<Src, Dest> {
     #[inline(always)]
     #[must_use]
     #[track_caller]
-    pub(crate) const fn coerce_slice_mut<'a>(self, src: &'a mut [Src]) -> &'a mut [Dest] {
+    pub(crate) const fn coerce_slice_mut<'a>(
+        self,
+        src: &'a mut [Src],
+    ) -> &'a mut [Dest] {
         self.wrap_slice().coerce_mut(src)
     }
 
@@ -343,7 +394,10 @@ impl<Src, Dest> TypeEq<Src, Dest> {
     #[inline(always)]
     #[must_use]
     #[track_caller]
-    pub(crate) const fn uncoerce(self, dest: Dest) -> Src {
+    pub(crate) const fn uncoerce(
+        self,
+        dest: Dest,
+    ) -> Src {
         self.flip().coerce(dest)
     }
 
@@ -351,7 +405,10 @@ impl<Src, Dest> TypeEq<Src, Dest> {
     #[inline(always)]
     #[must_use]
     #[track_caller]
-    pub(crate) const fn uncoerce_slice<'a>(self, dest: &'a [Dest]) -> &'a [Src] {
+    pub(crate) const fn uncoerce_slice<'a>(
+        self,
+        dest: &'a [Dest],
+    ) -> &'a [Src] {
         self.wrap_slice().uncoerce_ref(dest)
     }
 
@@ -359,14 +416,21 @@ impl<Src, Dest> TypeEq<Src, Dest> {
     #[inline(always)]
     #[must_use]
     #[track_caller]
-    pub(crate) const fn uncoerce_slice_mut<'a>(self, dest: &'a mut [Dest]) -> &'a mut [Src] {
+    pub(crate) const fn uncoerce_slice_mut<'a>(
+        self,
+        dest: &'a mut [Dest],
+    ) -> &'a mut [Src] {
         self.wrap_slice().uncoerce_mut(dest)
     }
 
     /// Swap a `Src` and a `Dest`.
     #[inline(always)]
     #[track_caller]
-    pub(crate) const fn swap(self, x: &mut Src, y: &mut Dest) {
+    pub(crate) const fn swap(
+        self,
+        x: &mut Src,
+        y: &mut Dest,
+    ) {
         core::mem::swap(self.coerce_mut(x), y)
     }
 
@@ -374,7 +438,11 @@ impl<Src, Dest> TypeEq<Src, Dest> {
     #[inline(always)]
     #[must_use]
     #[track_caller]
-    pub(crate) const fn replace(self, src: Src, dest: &mut Dest) -> Dest {
+    pub(crate) const fn replace(
+        self,
+        src: Src,
+        dest: &mut Dest,
+    ) -> Dest {
         core::mem::replace(dest, self.coerce(src))
     }
 }
@@ -384,7 +452,10 @@ impl<A0, A1> TypeEq<A0, A1> {
     #[inline(always)]
     #[must_use]
     #[track_caller]
-    pub(crate) const fn zip<B0, B1>(self, other: TypeEq<B0, B1>) -> TypeEq<(A0, B0), (A1, B1)> {
+    pub(crate) const fn zip<B0, B1>(
+        self,
+        other: TypeEq<B0, B1>,
+    ) -> TypeEq<(A0, B0), (A1, B1)> {
         let _ = other;
         // SAFETY: If `A0 == A1` and `B0 == B1`, then `(A0, B0) == (A1, B1)`.
         unsafe { TypeEq::new_unchecked() }
@@ -425,7 +496,7 @@ where
     #[must_use]
     #[track_caller]
     pub(crate) const fn wrap_from_elems_error(
-        self,
+        self
     ) -> TypeEq<FromElemsError<S0>, FromElemsError<S1>> {
         self.project()
     }

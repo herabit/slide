@@ -54,7 +54,7 @@ macro_rules! define_bounds {
         where
             B: SliceBounds + ?Sized,
         {
-            #[inline(always)]
+            #[inline]
             fn clone(&self) -> Self {
                 *self
             }
@@ -76,7 +76,7 @@ macro_rules! define_bounds {
         where
             B: SliceBounds + ?Sized,
         {
-            #[inline(always)]
+            #[inline]
             fn clone(&self) -> Self {
                 *self
             }

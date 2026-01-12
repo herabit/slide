@@ -1,10 +1,29 @@
 #![allow(dead_code)]
-use core::ops::Bound;
+use core::{cmp::Ordering, ops::Bound};
 
 /// Helper function that marks something as needing to be unsafe.
 #[inline(always)]
 pub(crate) const unsafe fn needs_unsafe<T>(x: T) -> T {
     x
+}
+
+#[inline(always)]
+#[track_caller]
+#[doc(hidden)]
+pub(crate) const unsafe fn __unreachable_unchecked<T>(value: T) -> ! {
+    core::mem::forget(value);
+    unsafe { core::hint::unreachable_unchecked() }
+}
+
+#[inline(always)]
+#[track_caller]
+#[doc(hidden)]
+pub(crate) const unsafe fn __assert_unchecked<T>(
+    cond: bool,
+    value: T,
+) {
+    core::mem::forget(value);
+    unsafe { core::hint::assert_unchecked(cond) }
 }
 
 /// Marks a given code path as cold.
@@ -60,5 +79,22 @@ where
         Bound::Included(&bound) => Bound::Included(bound),
         Bound::Excluded(&bound) => Bound::Excluded(bound),
         Bound::Unbounded => Bound::Unbounded,
+    }
+}
+
+/// Compare two [`prim@usize`]s.
+#[inline(always)]
+#[must_use]
+#[track_caller]
+pub(crate) const fn cmp_usize(
+    lhs: usize,
+    rhs: usize,
+) -> Ordering {
+    // NOTE: This gets optimized properly. Thank you improvements in LLVM!
+    match (lhs < rhs, lhs > rhs) {
+        (true, false) => Ordering::Less,
+        (false, true) => Ordering::Greater,
+        (false, false) => Ordering::Equal,
+        (true, true) => unreachable!(),
     }
 }

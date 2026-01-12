@@ -3,11 +3,11 @@
 use crate::macros::assert_unchecked;
 use core::{mem::ManuallyDrop, ptr};
 
-/// An even unsafer version of [`mem::transmute`].
+/// An even unsafer version of [`mem::transmute`](core::mem::transmute).
 ///
 /// # Safety
 ///
-/// In addition to the invariants of [`mem::transmute`],
+/// In addition to the invariants of [`mem::transmute`](core::mem::transmute),
 /// the caller must ensure that `A` and `B` are the same size.
 ///
 /// Failure to do so is immediate undefined behavior.
@@ -36,11 +36,11 @@ pub(crate) const unsafe fn transmute_unchecked<A, B>(a: A) -> B {
     }
 }
 
-/// A version of [`mem::transmute`] that plays better with generics.
+/// A version of [`mem::transmute`](core::mem::transmute) that plays better with generics.
 ///
 /// # Safety
 ///
-/// See [`mem::transmute`].
+/// See [`mem::transmute`](core::mem::transmute).
 ///
 /// # Panics
 ///
@@ -162,8 +162,8 @@ impl<T, E> NoDrop<Result<T, E>> {
         // SAFETY: References are always valid for reads, and we know that `self`
         //         is never touched again after this point.
         match self.as_ref() {
-            Ok(ok) => Ok(NoDrop::new(unsafe { ptr::read(ok) })),
-            Err(err) => Err(NoDrop::new(unsafe { ptr::read(err) })),
+            Ok(value) => Ok(NoDrop::new(unsafe { ptr::read(value) })),
+            Err(error) => Err(NoDrop::new(unsafe { ptr::read(error) })),
         }
     }
 }
@@ -180,7 +180,7 @@ impl<T> NoDrop<Option<T>> {
         // SAFETY: References are always valid for reads, and we know that `self`
         //         is never touched again after this point.
         match self.as_ref() {
-            Some(some) => Some(NoDrop::new(unsafe { ptr::read(some) })),
+            Some(value) => Some(NoDrop::new(unsafe { ptr::read(value) })),
             None => None,
         }
     }

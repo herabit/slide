@@ -14,7 +14,7 @@ macro_rules! _unreachable_unchecked {
                         $first,
                     ),
                     $($($rest)*)?
-                )
+                ),
             )
         }
     }};
@@ -24,9 +24,19 @@ macro_rules! _unreachable_unchecked {
 #[doc(hidden)]
 macro_rules! _unreachable_unchecked {
     ($first:tt $(, $($rest:tt)*)?) => {
-        ::core::hint::unreachable_unchecked()
+        $crate::util::__unreachable_unchecked(
+            ::core::format_args!(
+                ::core::concat!(
+                    "undefined behavior: ",
+                    $first,
+                ),
+                $($($rest)*)?
+            ),
+        )
     };
 }
+
+use core::fmt;
 
 pub(crate) use _unreachable_unchecked;
 
@@ -64,7 +74,16 @@ macro_rules! _assert_unchecked {
 #[doc(hidden)]
 macro_rules! _assert_unchecked {
     ($cond:expr, $first:tt $(, $($rest:tt)*)?) => {
-        ::core::hint::assert_unchecked($cond)
+        $crate::util::__assert_unchecked(
+            $cond,
+            || ::core::format_args!(
+                ::core::concat!(
+                    "undefined behavior: ",
+                    $first
+                ),
+                $($($rest)*)?
+            ),
+        )
     };
 }
 

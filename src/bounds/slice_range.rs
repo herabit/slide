@@ -36,8 +36,11 @@ impl SliceRange {
     /// # Returns
     ///
     /// Returns an error if `start > end.
-    #[inline(always)]
-    pub const fn try_new(start: usize, end: usize) -> Result<SliceRange, SliceRangeError> {
+    #[inline]
+    pub const fn try_new(
+        start: usize,
+        end: usize,
+    ) -> Result<SliceRange, SliceRangeError> {
         if start > end {
             Err(SliceRangeError::StartTooLarge {
                 start: NonZero::new(start).unwrap(),
@@ -54,13 +57,16 @@ impl SliceRange {
     /// # Panics
     ///
     /// Panics if `start > end`.
-    #[inline(always)]
+    #[inline]
     #[must_use]
     #[track_caller]
-    pub const fn new(start: usize, end: usize) -> SliceRange {
+    pub const fn new(
+        start: usize,
+        end: usize,
+    ) -> SliceRange {
         match SliceRange::try_new(start, end) {
             Ok(range) => range,
-            Err(err) => err.handle(),
+            Err(error) => error.panic(),
         }
     }
 
@@ -70,19 +76,22 @@ impl SliceRange {
     ///
     /// The caller must ensure that `start <= end`. Creating a [`SliceRange`]
     /// where `start > end` is undefined behavior.
-    #[inline(always)]
+    #[inline]
     #[must_use]
     #[track_caller]
-    pub const unsafe fn new_unchecked(start: usize, end: usize) -> SliceRange {
+    pub const unsafe fn new_unchecked(
+        start: usize,
+        end: usize,
+    ) -> SliceRange {
         match SliceRange::try_new(start, end) {
             Ok(range) => range,
             // SAFETY: The caller ensures `start <= end`.
-            Err(err) => unsafe { err.handle_unreachable() },
+            Err(error) => unsafe { error.panic_unchecked() },
         }
     }
 
     /// Create a new [`SliceRange`] from `0..end`.
-    #[inline(always)]
+    #[inline]
     #[must_use]
     #[track_caller]
     pub const fn up_to(end: usize) -> SliceRange {
@@ -91,7 +100,7 @@ impl SliceRange {
 
     /// Hint to the compiler that an [`SliceRange`] can only be created
     /// if `start <= end`.
-    #[inline(always)]
+    #[inline]
     #[track_caller]
     pub const fn compiler_hints(&self) {
         // SAFETY: We know that `start <= end`.
@@ -99,7 +108,7 @@ impl SliceRange {
     }
 
     /// Get the length of the range.
-    #[inline(always)]
+    #[inline]
     #[must_use]
     #[track_caller]
     pub const fn len(&self) -> usize {
@@ -109,7 +118,7 @@ impl SliceRange {
     }
 
     /// Get the start of the range.
-    #[inline(always)]
+    #[inline]
     #[must_use]
     #[track_caller]
     pub const fn start(&self) -> usize {
@@ -119,7 +128,7 @@ impl SliceRange {
     }
 
     /// Get the end of the range.
-    #[inline(always)]
+    #[inline]
     #[must_use]
     #[track_caller]
     pub const fn end(&self) -> usize {
@@ -129,7 +138,7 @@ impl SliceRange {
     }
 
     /// Get a reference to the start of the range.
-    #[inline(always)]
+    #[inline]
     #[must_use]
     #[track_caller]
     pub const fn start_ref(&self) -> &usize {
@@ -139,7 +148,7 @@ impl SliceRange {
     }
 
     /// Get a reference to the end of the range.
-    #[inline(always)]
+    #[inline]
     #[must_use]
     #[track_caller]
     pub const fn end_ref(&self) -> &usize {
@@ -161,7 +170,7 @@ impl SliceRange {
     /// is undefined behavior.
     ///
     /// Use at your own risk.
-    #[inline(always)]
+    #[inline]
     #[must_use]
     #[track_caller]
     pub const unsafe fn as_mut(&mut self) -> Range<&mut usize> {
@@ -187,7 +196,7 @@ impl SliceRange {
     /// is undefined behavior.
     ///
     /// Use at your own risk.
-    #[inline(always)]
+    #[inline]
     #[must_use]
     #[track_caller]
     pub const unsafe fn start_mut(&mut self) -> &mut usize {
@@ -208,7 +217,7 @@ impl SliceRange {
     /// is undefined behavior.
     ///
     /// Use at your own risk.
-    #[inline(always)]
+    #[inline]
     #[must_use]
     #[track_caller]
     pub const unsafe fn end_mut(&mut self) -> &mut usize {
@@ -227,10 +236,13 @@ impl SliceRange {
     /// This method returns an error if:
     ///
     /// - The start index would overflow.
+    ///
     /// - The end index would overflow.
+    ///
     /// - The start index is greater than the end index (`start > end`).
+    ///
     /// - The end index is greater than the length (`end > len`).
-    #[inline(always)]
+    #[inline]
     #[track_caller]
     pub const fn try_from_slice_bounds<B>(
         bounds: &B,
@@ -250,12 +262,18 @@ impl SliceRange {
     /// This method returns an error if:
     ///
     /// - The start index would overflow.
+    ///
     /// - The end index would overflow.
+    ///
     /// - The start index is greater than the end index (`start > end`).
+    ///
     /// - The end index is greater than the length (`end > len`).
-    #[inline(always)]
+    #[inline]
     #[track_caller]
-    pub fn try_from_range_bounds<B>(bounds: &B, len: usize) -> Result<SliceRange, SliceRangeError>
+    pub fn try_from_range_bounds<B>(
+        bounds: &B,
+        len: usize,
+    ) -> Result<SliceRange, SliceRangeError>
     where
         B: RangeBounds<usize> + ?Sized,
     {
@@ -269,19 +287,26 @@ impl SliceRange {
     /// This method panics if:
     ///
     /// - The start index would overflow.
+    ///
     /// - The end index would overflow.
+    ///
     /// - The start index is greater than the end index (`start > end`).
+    ///
     /// - The end index is greater than the length (`end > len`).
-    #[inline(always)]
+    ///
+    #[inline]
     #[must_use]
     #[track_caller]
-    pub const fn from_slice_bounds<B>(bounds: &B, len: usize) -> SliceRange
+    pub const fn from_slice_bounds<B>(
+        bounds: &B,
+        len: usize,
+    ) -> SliceRange
     where
         B: SliceBounds + ?Sized,
     {
         match try_from_bounds(as_bounds(bounds), len) {
             Ok(range) => range,
-            Err(err) => err.handle(),
+            Err(error) => error.panic(),
         }
     }
 
@@ -292,20 +317,23 @@ impl SliceRange {
     /// This method panics if:
     ///
     /// - The start index would overflow.
+    ///
     /// - The end index would overflow.
+    ///
     /// - The start index is greater than the end index (`start > end`).
+    ///
     /// - The end index is greater than the length (`end > len`).
-    #[inline(always)]
+    #[inline]
     #[must_use]
     #[track_caller]
-    pub fn from_range_bounds<B>(bounds: &B, len: usize) -> SliceRange
+    pub fn from_range_bounds<B>(
+        bounds: &B,
+        len: usize,
+    ) -> SliceRange
     where
         B: RangeBounds<usize> + ?Sized,
     {
-        match try_from_bounds((bounds.start_bound(), bounds.end_bound()), len) {
-            Ok(range) => range,
-            Err(err) => panic!("{err}"),
-        }
+        try_from_bounds((bounds.start_bound(), bounds.end_bound()), len).unwrap()
     }
 
     /// Create a new [`SliceRange`] from something that implements [`SliceBounds`] without any checks.
@@ -315,22 +343,28 @@ impl SliceRange {
     /// This method results in undefined behavior if:
     ///
     /// - The start index overflows.
+    ///
     /// - The end index overflows.
+    ///
     /// - The start index is greater than the end index (`start > end`).
+    ///
     /// - The end index is greater than the length (`end > len`).
     ///
     /// The caller is responsible for ensuring the above cases are impossible.
-    #[inline(always)]
+    #[inline]
     #[must_use]
     #[track_caller]
-    pub const unsafe fn from_slice_bounds_unchecked<B>(bounds: &B, len: usize) -> SliceRange
+    pub const unsafe fn from_slice_bounds_unchecked<B>(
+        bounds: &B,
+        len: usize,
+    ) -> SliceRange
     where
         B: SliceBounds + ?Sized,
     {
         match try_from_bounds(as_bounds(bounds), len) {
             Ok(range) => range,
             // SAFETY: The caller ensures that this can never occur.
-            Err(err) => unsafe { err.handle_unreachable() },
+            Err(error) => unsafe { error.panic_unchecked() },
         }
     }
 
@@ -341,22 +375,28 @@ impl SliceRange {
     /// The method results in undefined behavior if:
     ///
     /// - The start index overflows.
+    ///
     /// - The end index overflows.
+    ///
     /// - The start index is greater than the end index (`start > end`).
+    ///
     /// - The end index is greater than the length (`end > len`).
     ///
     /// The caller is responsible for ensuring the above cases are impossible.
-    #[inline(always)]
+    #[inline]
     #[must_use]
     #[track_caller]
-    pub unsafe fn from_range_bounds_unchecked<B>(bounds: &B, len: usize) -> SliceRange
+    pub unsafe fn from_range_bounds_unchecked<B>(
+        bounds: &B,
+        len: usize,
+    ) -> SliceRange
     where
         B: RangeBounds<usize> + ?Sized,
     {
         match try_from_bounds((bounds.start_bound(), bounds.end_bound()), len) {
             Ok(range) => range,
             // SAFETY: The caller ensures this can never occur.
-            Err(err) => unsafe { unreachable_unchecked!("{}", err) },
+            Err(error) => unsafe { unreachable_unchecked!("{}", error) },
         }
     }
 }
@@ -371,8 +411,11 @@ impl SliceRange {
 /// This method returns an error if:
 ///
 /// - The start index would overflow.
+///
 /// - The end index would overflow.
+///
 /// - The start index is greater than the end index (`start > end`).
+///
 /// - The end index is greater than the length (`end > len`).
 #[inline(always)]
 const fn try_from_bounds(
@@ -534,14 +577,20 @@ impl<T> Index<SliceRange> for [T] {
 
     #[inline(always)]
     #[track_caller]
-    fn index(&self, index: SliceRange) -> &Self::Output {
+    fn index(
+        &self,
+        index: SliceRange,
+    ) -> &Self::Output {
         &self[ops::Range::from(index)]
     }
 }
 
 impl<T> IndexMut<SliceRange> for [T] {
     #[inline(always)]
-    fn index_mut(&mut self, index: SliceRange) -> &mut Self::Output {
+    fn index_mut(
+        &mut self,
+        index: SliceRange,
+    ) -> &mut Self::Output {
         &mut self[ops::Range::from(index)]
     }
 }
@@ -550,14 +599,20 @@ impl<T> Index<&SliceRange> for [T] {
     type Output = [T];
 
     #[inline(always)]
-    fn index(&self, index: &SliceRange) -> &Self::Output {
+    fn index(
+        &self,
+        index: &SliceRange,
+    ) -> &Self::Output {
         &self[*index]
     }
 }
 
 impl<T> IndexMut<&SliceRange> for [T] {
     #[inline(always)]
-    fn index_mut(&mut self, index: &SliceRange) -> &mut Self::Output {
+    fn index_mut(
+        &mut self,
+        index: &SliceRange,
+    ) -> &mut Self::Output {
         &mut self[*index]
     }
 }
@@ -566,14 +621,20 @@ impl Index<SliceRange> for str {
     type Output = str;
 
     #[inline(always)]
-    fn index(&self, index: SliceRange) -> &Self::Output {
+    fn index(
+        &self,
+        index: SliceRange,
+    ) -> &Self::Output {
         &self[ops::Range::from(index)]
     }
 }
 
 impl IndexMut<SliceRange> for str {
     #[inline(always)]
-    fn index_mut(&mut self, index: SliceRange) -> &mut Self::Output {
+    fn index_mut(
+        &mut self,
+        index: SliceRange,
+    ) -> &mut Self::Output {
         &mut self[ops::Range::from(index)]
     }
 }
@@ -582,14 +643,20 @@ impl Index<&SliceRange> for str {
     type Output = str;
 
     #[inline(always)]
-    fn index(&self, index: &SliceRange) -> &Self::Output {
+    fn index(
+        &self,
+        index: &SliceRange,
+    ) -> &Self::Output {
         &self[*index]
     }
 }
 
 impl IndexMut<&SliceRange> for str {
     #[inline(always)]
-    fn index_mut(&mut self, index: &SliceRange) -> &mut Self::Output {
+    fn index_mut(
+        &mut self,
+        index: &SliceRange,
+    ) -> &mut Self::Output {
         &mut self[*index]
     }
 }
@@ -622,10 +689,10 @@ pub enum SliceRangeError {
 
 impl SliceRangeError {
     /// Panic with an error message if this error was hit.
-    #[inline(always)]
     #[track_caller]
     #[cold]
-    pub(crate) const fn handle(&self) -> ! {
+    #[inline(never)]
+    pub(crate) const fn panic(&self) -> ! {
         match self {
             SliceRangeError::StartOverflow => panic!("range start would overflow"),
             SliceRangeError::EndOverflow => panic!("range end would overflow"),
@@ -645,10 +712,11 @@ impl SliceRangeError {
     /// The caller must ensure that this error is ***actually impossible to reach***.
     ///
     /// Failure to do so is undefined behavior.
-    #[inline(always)]
     #[track_caller]
     #[cold]
-    pub(crate) const unsafe fn handle_unreachable(self) -> ! {
+    #[cfg_attr(debug_assertions, inline(never))]
+    #[cfg_attr(not(debug_assertions), inline(always))]
+    pub(crate) const unsafe fn panic_unchecked(self) -> ! {
         // SAFETY: The caller ensures this is fine.
         unsafe {
             match self {
@@ -668,7 +736,10 @@ impl SliceRangeError {
 }
 
 impl fmt::Display for SliceRangeError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(
+        &self,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         match self {
             SliceRangeError::StartOverflow => core::write!(f, "range start would overflow"),
             SliceRangeError::EndOverflow => core::write!(f, "range end would overflow"),

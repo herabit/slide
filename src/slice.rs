@@ -1,6 +1,8 @@
-#![allow(clippy::empty_docs)]
+#![allow(type_alias_bounds, clippy::empty_docs)]
 
-use crate::{marker::TypeEq, slice::private::SliceKind};
+use crate::{
+    macros::unreachable_unchecked, marker::TypeEq, mem::NoDrop, slice::private::SliceKind,
+};
 use core::{convert::Infallible, fmt, ptr::NonNull, str::Utf8Error};
 
 /// Internal implementation details.
@@ -10,6 +12,18 @@ pub(crate) mod private;
 pub(crate) mod error;
 #[doc(inline)]
 pub use error::*;
+
+/// Just an alias for a split slice tuple.
+pub type Split<'a, S>
+where
+    S: Slice + ?Sized,
+= (&'a S, &'a S);
+
+/// Just an alias for the results of a mutable split.
+pub type SplitMut<'a, S>
+where
+    S: Slice + ?Sized,
+= (&'a mut S, &'a mut S);
 
 /// Extracts documentation and creates a string from it.
 macro_rules! extract_docs {
@@ -72,7 +86,7 @@ methods! {
     ///
     /// For more detailed documentation, refer to the documentation for [`Slice::len`]
     /// as implemented for `S`/`Self`.
-    #[inline(always)]
+    #[inline]
     #[must_use]
     #[track_caller]
     pub const fn len[S](
@@ -88,7 +102,7 @@ methods! {
     ///
     /// For more detailed documentation, refer to the documentation for [`Slice::is_empty`]
     /// as implemented for `S`/`Self`.
-    #[inline(always)]
+    #[inline]
     #[must_use]
     #[track_caller]
     pub const fn is_empty[S](
@@ -111,7 +125,7 @@ methods! {
     /// about a raw slice.
     ///
     /// Proceed with caution.
-    #[inline(always)]
+    #[inline]
     #[must_use]
     #[track_caller]
     pub const fn raw_slice[S](
@@ -135,7 +149,7 @@ methods! {
     /// about a raw slice.
     ///
     /// Proceed with caution.
-    #[inline(always)]
+    #[inline]
     #[must_use]
     #[track_caller]
     pub const fn raw_slice_mut[S](
@@ -159,7 +173,7 @@ methods! {
     /// about a raw slice.
     ///
     /// Proceed with caution.
-    #[inline(always)]
+    #[inline]
     #[must_use]
     #[track_caller]
     pub const fn raw_slice_nonnull[S](
@@ -182,8 +196,9 @@ methods! {
     /// It is up to the caller to ensure the following, and failure to do so is *undefined behavior*:
     ///
     /// - That the invariants of [`core::slice::from_raw_parts`] are upheld.
+    ///
     /// - That the invariants of [`Slice::from_elems_unchecked`] for `S`/`Self` are upheld.
-    #[inline(always)]
+    #[inline]
     #[must_use]
     #[track_caller]
     pub const unsafe fn from_raw_parts['a, S](
@@ -207,8 +222,9 @@ methods! {
     /// It is up to the caller to ensure the following, and failure to do so is *undefined behavior*:
     ///
     /// - That the invariants of [`core::slice::from_raw_parts_mut`] are upheld.
+    ///
     /// - That the invariants of [`Slice::from_elems_mut_unchecked`] for `S`/`Self` are upheld.
-    #[inline(always)]
+    #[inline]
     #[must_use]
     #[track_caller]
     pub const unsafe fn from_raw_parts_mut['a, S](
@@ -230,8 +246,9 @@ methods! {
     /// # Returns
     ///
     /// - Returns [`Ok`] upon success.
+    ///
     /// - Returns [`Err`] upon failure.
-    #[inline(always)]
+    #[inline]
     #[track_caller]
     pub const fn try_from_elems['a, S](
         elems: &'a [S::Elem],
@@ -250,8 +267,9 @@ methods! {
     /// # Returns
     ///
     /// - Returns [`Ok`] upon success.
+    ///
     /// - Returns [`Err`] upon failure.
-    #[inline(always)]
+    #[inline]
     #[track_caller]
     pub const fn try_from_elems_mut['a, S](
         elems: &'a mut [S::Elem],
@@ -270,7 +288,7 @@ methods! {
     /// # Panics
     ///
     /// Panics if [`Slice::try_from_elems`] fails.
-    #[inline(always)]
+    #[inline]
     #[must_use]
     #[track_caller]
     pub const fn from_elems['a, S](
@@ -290,7 +308,7 @@ methods! {
     /// # Panics
     ///
     /// Panics if [`Slice::try_from_elems_mut`] fails.
-    #[inline(always)]
+    #[inline]
     #[must_use]
     #[track_caller]
     pub const fn from_elems_mut['a, S](
@@ -311,7 +329,7 @@ methods! {
     ///
     /// It is up to the caller to ensure that the invariants of [`Slice::from_elems_unchecked`]
     /// as implemented for `S`/`Self` are upheld. Failure to do so is *undefined behavior*.
-    #[inline(always)]
+    #[inline]
     #[must_use]
     #[track_caller]
     pub const unsafe fn from_elems_unchecked['a, S](
@@ -333,7 +351,7 @@ methods! {
     ///
     /// It is up to the caller to ensure that the invariants of [`Slice::from_elems_mut_unchecked`]
     /// as implemented for `S`/`Self` are upheld. Failure to do so is *undefined behavior*.
-    #[inline(always)]
+    #[inline]
     #[must_use]
     #[track_caller]
     pub const unsafe fn from_elems_mut_unchecked['a, S](
@@ -354,8 +372,9 @@ methods! {
     /// # Returns
     ///
     /// - Returns [`Ok`] upon success.
+    ///
     /// - Returns [`Err`] upon failure.
-    #[inline(always)]
+    #[inline]
     #[track_caller]
     pub const fn try_as_elems['a, S](
         slice: &'a S,
@@ -374,7 +393,7 @@ methods! {
     /// # Panics
     ///
     /// Panics if [`Slice::try_as_elems`] fails.
-    #[inline(always)]
+    #[inline]
     #[must_use]
     #[track_caller]
     pub const fn as_elems['a, S](
@@ -395,7 +414,7 @@ methods! {
     ///
     /// It is up to the caller to ensure that the invariants of [`Slice::as_elems_unchecked`]
     /// as implemented for `S`/`Self` are upheld. Failure to do so is *undefined behavior*.
-    #[inline(always)]
+    #[inline]
     #[must_use]
     #[track_caller]
     pub const unsafe fn as_elems_unchecked['a, S](
@@ -416,8 +435,9 @@ methods! {
     /// # Returns
     ///
     /// - Returns [`Ok`] upon success.
+    ///
     /// - Returns [`Err`] upon failure.
-    #[inline(always)]
+    #[inline]
     #[track_caller]
     pub const fn try_as_elems_mut['a, S](
         slice: &'a mut S,
@@ -436,7 +456,7 @@ methods! {
     /// # Panics
     ///
     /// Panics if [`Slice::try_as_elems_mut`] fails.
-    #[inline(always)]
+    #[inline]
     #[must_use]
     #[track_caller]
     pub const fn as_elems_mut['a, S](
@@ -457,7 +477,7 @@ methods! {
     ///
     /// It is up to the caller to ensure that the invariants of [`Slice::as_elems_mut_unchecked`]
     /// as implemented for `S`/`Self` are upheld. Failure to do so is *undefined behavior*.
-    #[inline(always)]
+    #[inline]
     #[must_use]
     #[track_caller]
     pub const unsafe fn as_elems_mut_unchecked['a, S](
@@ -468,6 +488,194 @@ methods! {
     ) {
         // SAFETY: The caller ensures this is sound.
         unsafe { S::KIND.0.as_elems_mut_unchecked(slice)  }
+    }
+
+    /// Given some slice, determine whether it is valid to split it at the provided index.
+    ///
+    /// For more detailed documentation and safety info, refer to
+    /// the documentation for [`Slice::validate_split_at`] as implemented for `S`/`Self`.
+    ///
+    /// # Returns
+    ///
+    /// - `Ok(())` upon success.
+    ///
+    /// - `Err(SplitError::OutOfBounds { index, len })` if `index` is out of bounds (`index > len`).
+    ///
+    /// - `Err(SplitError::Other(..))` upon some other error defined by `S`/`Self`. See the
+    ///    documentation for [`Slice::validate_split_at`] as implemented for `S`/`Self` for more
+    ///    info.
+    ///
+    /// # Safety
+    ///
+    /// The results of this function can be relied on for determining whether it is
+    /// sound to split at `index` unsafely.
+    #[inline]
+    #[track_caller]
+    pub const fn validate_split_at['a, S](
+        slice: &'a S,
+        index: usize,
+    ) -> Result<(), SplitError<S>>
+    where (
+        S: Slice + ?Sized,
+    ) {
+        S::KIND.0.validate_split_at(slice, index)
+    }
+
+    /// Given some slice, split it at `index` without any checks.
+    ///
+    /// For more detailed documentation and safety info, refer to
+    /// the documentation for [`Slice::split_at_unchecked`] as implemented for `S`/`Self`.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that [`Slice::validate_split_at`] as implemented for `S`/`Self`
+    /// *always succeeds*. Failure to do so is *undefined behavior*.
+    ///
+    /// # Returns
+    ///
+    /// Returns a tuple of `(head, tail)`.
+    #[inline]
+    #[must_use]
+    #[track_caller]
+    pub const unsafe fn split_at_unchecked['a, S](
+        slice: &'a S,
+        index: usize,
+    ) -> Split<'a, S>
+    where (
+        S: Slice + ?Sized,
+    ) {
+        // SAFETY: The caller ensures this is sound.
+        unsafe { S::KIND.0.split_at_unchecked(slice, index) }
+    }
+
+    /// Given some mutable slice, split it at `index` without any checks.
+    ///
+    /// For more detailed documentation and safety info, refer to
+    /// the documentation for [`Slice::split_at_mut_unchecked`] as implemented for `S`/`Self`.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that [`Slice::validate_split_at`] as implemented for `S`/`Self`
+    /// *always succeeds*. Failure to do so is *undefined behavior*.
+    ///
+    /// # Returns
+    ///
+    /// Returns a tuple of `(head, tail)`.
+    #[inline]
+    #[must_use]
+    #[track_caller]
+    pub const unsafe fn split_at_mut_unchecked['a, S](
+        slice: &'a mut S,
+        index: usize,
+    ) -> SplitMut<'a, S>
+    where (
+        S: Slice + ?Sized,
+    ) {
+        // SAFETY: The caller ensures this is sound.
+        unsafe { S::KIND.0.split_at_mut_unchecked(slice, index) }
+    }
+
+    /// Given some slice, try to split it at `index`.
+    ///
+    /// For more detailed documentation and safety info, refer to
+    /// the documentation for [`Slice::try_split_at`] as implemented for `S`/`Self`.
+    ///
+    /// # Returns
+    ///
+    /// - `Ok((head, tail))` upon success.
+    ///
+    /// - `Err(SplitError::OutOfBounds { index, len })` if `index` is out of bounds (`index > len`).
+    ///
+    /// - `Err(SplitError::Other(..))` upon some other error defined by `S`/`Self`. See the
+    ///    documentation for [`Slice::validate_split_at`] as implemented for `S`/`Self` for more
+    ///    info.
+    #[inline]
+    #[track_caller]
+    pub const fn try_split_at['a, S](
+        slice: &'a S,
+        index: usize,
+    ) -> Result<Split<'a, S>, SplitError<S>>
+    where (
+        S: Slice + ?Sized,
+    ) {
+        S::KIND.0.try_split_at(slice, index)
+    }
+
+    /// Given some mutable slice, try to split it at `index`.
+    ///
+    /// For more detailed documentation and safety info, refer to
+    /// the documentation for [`Slice::try_split_at_mut`] as implemented for `S`/`Self`.
+    ///
+    /// # Returns
+    ///
+    /// - `Ok((head, tail))` upon success.
+    ///
+    /// - `Err(SplitError::OutOfBounds { index, len })` if `index` is out of bounds (`index > len`).
+    ///
+    /// - `Err(SplitError::Other(..))` upone some other error defined by `S`/`Self`. See the
+    ///    documentation for [`Slice::validate_split_at`] as implemented for `S`/`Self` for more
+    ///    info.
+    #[inline]
+    #[track_caller]
+    pub const fn try_split_at_mut['a, S](
+        slice: &'a mut S,
+        index: usize,
+    ) -> Result<SplitMut<'a, S>, SplitError<S>>
+    where (
+        S: Slice + ?Sized,
+    ) {
+        S::KIND.0.try_split_at_mut(slice, index)
+    }
+
+    /// Given some slice, split it at `index`.
+    ///
+    /// For more detailed documentation and safety info, refer to
+    /// the documentation for [`Slice::try_split_at`] as implemented for `S`/`Self`.
+    ///
+    /// # Panics
+    ///
+    /// - If `index` is out of bounds (`index > len`).
+    ///
+    /// - If some other error defined by `S`/`Self` occurs. See the documentation
+    ///   for [`Slice::validate_split_at`] as implemented for `S`/`Self` for more
+    ///   info on what other errors can occur.
+    #[inline]
+    #[must_use]
+    #[track_caller]
+    pub const fn split_at['a, S](
+        slice: &'a S,
+        index: usize,
+    ) -> Split<'a, S>
+    where (
+        S: Slice + ?Sized,
+    ) {
+        S::KIND.0.split_at(slice, index)
+    }
+
+
+    /// Given some mutable slice, split it at `index`.
+    ///
+    /// For more detailed documentation and safety info, refer to
+    /// the documentation for [`Slice::try_split_at_mut`] as implemented for `S`/`Self`.
+    ///
+    /// # Panics
+    ///
+    /// - If `index` is out of bounds (`index > len`).
+    ///
+    /// - If some other error defined by `S`/`Self` occurs. See the documentation
+    ///   for [`Slice::validate_split_at`] as implemented for `S`/`Self` for more
+    ///   info on what other errors can occur.
+    #[inline]
+    #[must_use]
+    #[track_caller]
+    pub const fn split_at_mut['a, S](
+        slice: &'a mut S,
+        index: usize,
+    ) -> SplitMut<'a, S>
+    where (
+        S: Slice + ?Sized,
+    ) {
+        S::KIND.0.split_at_mut(slice, index)
     }
 }
 
@@ -490,6 +698,7 @@ pub unsafe trait Slice: private::Sealed {
     /// This requires the following:
     ///
     /// - The alignment requirements for `Self` and `[Elem]` must be the same.
+    ///
     /// - That the bit validity and initialization requirements of `Self` is
     ///   at least as restrictive as `[Elem]`, but not any less restrictive.
     ///
@@ -499,18 +708,63 @@ pub unsafe trait Slice: private::Sealed {
     ///   However, [`prim@str`] has further invariants. In order for some region
     ///   of memory to be a valid [`prim@str`], it *must* be a valid `[u8]`, and
     ///   be entirely comprised of well-formed UTF-8.
+    ///
     /// - Likely more, don't mess this up. Seriously.
     type Elem: Sized;
 
     /// An error that is returned when trying to create a `Self` from some `[Elem]`.
+    ///
+    /// # Safety
+    ///
+    /// Unlike splitting, safely creating a reference to a slice is not required
+    /// to be valid for shared and exclusive references.
+    ///
+    /// TODO: Rephrase above.
     type FromElemsErr: 'static + Sized + fmt::Debug + fmt::Display;
 
     /// An error that is returned when trying to safely get a `[Elem]` from some `Self`.
+    ///
+    /// # Safety
+    ///
+    /// Unlike splitting, safely getting a reference to the underlying elements is not
+    /// required to be valid for shared and exclusive references.
+    ///
+    /// TODO: Rephrase above.
+    ///
+    /// One such example are [`prim@str`]s, it is *always* safe to get a shared
+    /// reference to their underlying bytes, but it is *not* safe to get an
+    /// exclusive reference to their underlying bytes. This is because it is
+    /// possible mutate the bytes in such a manner that the [`prim@str`] is
+    /// no longer well-formed UTF-8, which is *undefined behavior*.
     type AsElemsErr: 'static + Sized + fmt::Debug + fmt::Display;
 
     /// An error that may occur when attempting to split this slice into a subslice.
     ///
     /// This does not include out of bounds errors.
+    ///
+    /// # Safety
+    ///
+    /// The conditions for when it is valid to split a slice *must not* differ for
+    /// shared references and exclusive references. The split methods are mirrors of
+    /// one another, and should not differ in semantics beyond what kind of reference
+    /// they operate on.
+    ///
+    /// What this means for you:
+    ///
+    /// - If it is valid to split a shared reference to `slice` at `index`,
+    ///   then it must be valid to split an exclusive reference to `slice` at `index`.
+    ///
+    /// - If it is valid to split an exclusive reference to `slice` at `index`,
+    ///   then it must be valid to split a shared reference to `slice`.
+    ///
+    /// - If it is invalid to split a shared reference to `slice` at `index`,
+    ///   then it must be invalid to split an exclusive reference to `slice` at `index`.
+    ///
+    /// - If it is invalid to split an exclusive reference to `slice` at `index`,
+    ///   then it must be invalid to split a shared reference to `slice` at `index`.
+    ///
+    /// If you need to determine whether or not it is sound to split some slice at some
+    /// index, see [`Slice::validate_split_at`] and the implementor's documentation for it.
     type SplitErr: 'static + Sized + fmt::Debug + fmt::Display;
 
     // Type witness.
@@ -520,37 +774,52 @@ pub unsafe trait Slice: private::Sealed {
     #[doc = docs!(len)]
     #[must_use]
     #[track_caller]
-    fn len(&self) -> usize;
+    fn len<'a>(&'a self) -> usize;
 
     #[doc = docs!(is_empty)]
     #[must_use]
     #[track_caller]
-    fn is_empty(&self) -> bool;
+    fn is_empty<'a>(&'a self) -> bool;
 
     #[doc = docs!(raw_slice)]
     #[must_use]
     #[track_caller]
-    fn raw_slice(data: *const Self::Elem, len: usize) -> *const Self;
+    fn raw_slice(
+        data: *const Self::Elem,
+        len: usize,
+    ) -> *const Self;
 
     #[doc = docs!(raw_slice_mut)]
     #[must_use]
     #[track_caller]
-    fn raw_slice_mut(data: *mut Self::Elem, len: usize) -> *mut Self;
+    fn raw_slice_mut(
+        data: *mut Self::Elem,
+        len: usize,
+    ) -> *mut Self;
 
     #[doc = docs!(raw_slice_nonnull)]
     #[must_use]
     #[track_caller]
-    fn raw_slice_nonnull(data: NonNull<Self::Elem>, len: usize) -> NonNull<Self>;
+    fn raw_slice_nonnull(
+        data: NonNull<Self::Elem>,
+        len: usize,
+    ) -> NonNull<Self>;
 
     #[doc = docs!(from_raw_parts)]
     #[must_use]
     #[track_caller]
-    unsafe fn from_raw_parts<'a>(data: *const Self::Elem, len: usize) -> &'a Self;
+    unsafe fn from_raw_parts<'a>(
+        data: *const Self::Elem,
+        len: usize,
+    ) -> &'a Self;
 
     #[doc = docs!(from_raw_parts_mut)]
     #[must_use]
     #[track_caller]
-    unsafe fn from_raw_parts_mut<'a>(data: *mut Self::Elem, len: usize) -> &'a mut Self;
+    unsafe fn from_raw_parts_mut<'a>(
+        data: *mut Self::Elem,
+        len: usize,
+    ) -> &'a mut Self;
 
     #[doc = docs!(try_from_elems)]
     #[track_caller]
@@ -559,7 +828,7 @@ pub unsafe trait Slice: private::Sealed {
     #[doc = docs!(try_from_elems_mut)]
     #[track_caller]
     fn try_from_elems_mut<'a>(
-        elems: &'a mut [Self::Elem],
+        elems: &'a mut [Self::Elem]
     ) -> Result<&'a mut Self, FromElemsError<Self>>;
 
     #[doc = docs!(from_elems)]
@@ -609,6 +878,59 @@ pub unsafe trait Slice: private::Sealed {
     #[must_use]
     #[track_caller]
     unsafe fn as_elems_mut_unchecked<'a>(&'a mut self) -> &'a mut [Self::Elem];
+
+    #[doc = docs!(validate_split_at)]
+    #[track_caller]
+    fn validate_split_at<'a>(
+        &'a self,
+        index: usize,
+    ) -> Result<(), SplitError<Self>>;
+
+    #[doc = docs!(split_at_unchecked)]
+    #[must_use]
+    #[track_caller]
+    unsafe fn split_at_unchecked<'a>(
+        &'a self,
+        index: usize,
+    ) -> Split<'a, Self>;
+
+    #[doc = docs!(split_at_mut_unchecked)]
+    #[must_use]
+    #[track_caller]
+    unsafe fn split_at_mut_unchecked<'a>(
+        &'a mut self,
+        index: usize,
+    ) -> SplitMut<'a, Self>;
+
+    #[doc = docs!(try_split_at)]
+    #[track_caller]
+    fn try_split_at<'a>(
+        &'a self,
+        index: usize,
+    ) -> Result<Split<'a, Self>, SplitError<Self>>;
+
+    #[doc = docs!(try_split_at_mut)]
+    #[track_caller]
+    fn try_split_at_mut<'a>(
+        &'a mut self,
+        index: usize,
+    ) -> Result<SplitMut<'a, Self>, SplitError<Self>>;
+
+    #[doc = docs!(split_at)]
+    #[must_use]
+    #[track_caller]
+    fn split_at<'a>(
+        &'a self,
+        index: usize,
+    ) -> Split<'a, Self>;
+
+    #[doc = docs!(split_at_mut)]
+    #[must_use]
+    #[track_caller]
+    fn split_at_mut<'a>(
+        &'a mut self,
+        index: usize,
+    ) -> SplitMut<'a, Self>;
 }
 
 /// Gets a type or it's alternative, preferring the alternative.
@@ -646,179 +968,355 @@ macro_rules! slice {
             type Variant = $variant:ident;
 
             $(#[$module_attr:meta])*
-            type Module = $module:ident;
+            type Module = $module_vis:vis $module:ident;
         }
     )+) => {
         $(
             $(#[$module_attr])*
             $(#[cfg($($cfg)*)])*
-            mod $module;
+            $module_vis mod $module;
 
             $(#[cfg($($cfg)*)])*
-            impl $(< $($gen)* >)? private::Sealed for $slice {}
+            const _: () = {
+                impl $(< $($gen)* >)? private::Sealed for $slice {}
 
-            $(#[cfg($($cfg)*)])*
-            $(#[doc = $doc])*
-            unsafe impl $(< $($gen)* >)? Slice for $slice {
-                $(#[$elem_attr])*
-                type Elem = $elem;
 
-                $(#[$from_elems_attr])*
-                type FromElemsErr = $from_elems;
+                $(#[doc = $doc])*
+                #[rustfmt::skip]
+                unsafe impl $(< $($gen)* >)? Slice for $slice {
+                    $(#[$elem_attr])*
+                    type Elem = $elem;
 
-                $(#[$as_elems_attr])*
-                type AsElemsErr = $as_elems;
+                    $(#[$from_elems_attr])*
+                    type FromElemsErr = $from_elems;
 
-                $(#[$split_attr])*
-                type SplitErr = $split;
+                    $(#[$as_elems_attr])*
+                    type AsElemsErr = $as_elems;
 
-                const KIND: SliceKind<Self> = SliceKind(SliceWit::$variant {
-                    slice: TypeEq::new(),
-                    elem: TypeEq::new(),
-                    from_elems_error: TypeEq::new(),
-                    as_elems_error: TypeEq::new(),
-                    split_error: TypeEq::new(),
-                });
+                    $(#[$split_attr])*
+                    type SplitErr = $split;
 
-                #[doc = self::$module::docs!(len)]
-                #[inline(always)]
-                #[track_caller]
-                fn len(&self) -> usize {
-                    len(self)
+                    const KIND: SliceKind<Self> = SliceKind(SliceWit::$variant {
+                        slice: TypeEq::new(),
+                        elem: TypeEq::new(),
+                        from_elems_error: TypeEq::new(),
+                        as_elems_error: TypeEq::new(),
+                        split_error: TypeEq::new(),
+                    });
+
+                    #[doc = self::$module::docs!(len)]
+                    #[inline(always)]
+                    #[track_caller]
+                    fn len(
+                        &self,
+                    ) -> usize {
+                        len(self)
+                    }
+
+                    #[doc = self::$module::docs!(is_empty)]
+                    #[inline(always)]
+                    #[track_caller]
+                    fn is_empty(
+                        &self,
+                    ) -> bool {
+                        is_empty(self)
+                    }
+
+                    #[doc = self::$module::docs!(raw_slice)]
+                    #[inline(always)]
+                    #[track_caller]
+                    fn raw_slice(
+                        data: *const $elem,
+                        len: usize,
+                    ) -> *const $slice {
+                        raw_slice(data, len)
+                    }
+
+                    #[doc = $module::docs!(raw_slice_mut)]
+                    #[inline(always)]
+                    #[track_caller]
+                    fn raw_slice_mut(
+                        data: *mut $elem,
+                        len: usize,
+                    ) -> *mut $slice {
+                        raw_slice_mut(data, len)
+                    }
+
+                    #[doc = self::$module::docs!(raw_slice_nonnull)]
+                    #[inline(always)]
+                    #[track_caller]
+                    fn raw_slice_nonnull(
+                        data: NonNull<$elem>,
+                        len: usize,
+                    ) -> NonNull<$slice> {
+                        raw_slice_nonnull(data, len)
+                    }
+
+                    #[doc = self::$module::docs!(from_raw_parts)]
+                    #[inline(always)]
+                    #[track_caller]
+                    unsafe fn from_raw_parts<'a>(
+                        data: *const $elem,
+                        len: usize,
+                    ) -> &'a $slice {
+                        // SAFETY: The caller ensures this is safe.
+                        unsafe { from_raw_parts(data, len) }
+                    }
+
+                    #[doc = self::$module::docs!(from_raw_parts_mut)]
+                    #[inline(always)]
+                    #[track_caller]
+                    unsafe fn from_raw_parts_mut<'a>(
+                        data: *mut $elem,
+                        len: usize,
+                    ) -> &'a mut $slice {
+                        // SAFETY: The caller ensures this is safe.
+                        unsafe { from_raw_parts_mut(data, len) }
+                    }
+
+                    #[doc = self::$module::docs!(try_from_elems)]
+                    #[inline(always)]
+                    #[track_caller]
+                    fn try_from_elems<'a>(
+                        elems: &'a [$elem],
+                    ) -> Result<&'a $slice, FromElemsError<$slice>> {
+                        try_from_elems(elems)
+                    }
+
+                    #[doc = self::$module::docs!(try_from_elems_mut)]
+                    #[inline(always)]
+                    #[track_caller]
+                    fn try_from_elems_mut<'a>(
+                        elems: &'a mut [Self::Elem],
+                    ) -> Result<&'a mut $slice, FromElemsError<$slice>> {
+                        try_from_elems_mut(elems)
+                    }
+
+                    #[doc = self::$module::docs!(from_elems)]
+                    #[inline(always)]
+                    #[track_caller]
+                    fn from_elems<'a>(
+                        elems: &'a [$elem],
+                    ) -> &'a $slice {
+                        from_elems(elems)
+                    }
+
+                    #[doc = self::$module::docs!(from_elems_mut)]
+                    #[inline(always)]
+                    #[track_caller]
+                    fn from_elems_mut<'a>(
+                        elems: &'a mut [$elem],
+                    ) -> &'a mut $slice {
+                        from_elems_mut(elems)
+                    }
+
+                    #[doc = self::$module::docs!(from_elems_unchecked)]
+                    #[inline(always)]
+                    #[track_caller]
+                    unsafe fn from_elems_unchecked<'a>(
+                        elems: &'a [$elem],
+                    ) -> &'a $slice {
+                        // SAFETY: The caller ensures this is safe.
+                        unsafe { from_elems_unchecked(elems) }
+                    }
+
+                    #[doc = self::$module::docs!(from_elems_mut_unchecked)]
+                    #[inline(always)]
+                    #[track_caller]
+                    unsafe fn from_elems_mut_unchecked<'a>(
+                        elems: &'a mut [$elem],
+                    ) -> &'a mut $slice {
+                        // SAFETY: The caller ensures this is safe.
+                        unsafe { from_elems_mut_unchecked(elems) }
+                    }
+
+                    #[doc = self::$module::docs!(try_as_elems)]
+                    #[inline(always)]
+                    #[track_caller]
+                    fn try_as_elems<'a>(
+                        &'a self,
+                    ) -> Result<&'a [$elem], AsElemsError<$slice>> {
+                        try_as_elems(self)
+                    }
+
+                    #[doc = self::$module::docs!(try_as_elems_mut)]
+                    #[inline(always)]
+                    #[track_caller]
+                    fn try_as_elems_mut<'a>(
+                        &'a mut self,
+                    ) -> Result<&'a mut [$elem], AsElemsError<$slice>> {
+                        try_as_elems_mut(self)
+                    }
+
+                    #[doc = self::$module::docs!(as_elems)]
+                    #[inline(always)]
+                    #[track_caller]
+                    fn as_elems<'a>(
+                        &'a self,
+                    ) -> &'a [$elem] {
+                        as_elems(self)
+                    }
+
+                    #[doc = self::$module::docs!(as_elems_mut)]
+                    #[inline(always)]
+                    #[track_caller]
+                    fn as_elems_mut<'a>(
+                        &'a mut self,
+                    ) -> &'a mut [$elem] {
+                        as_elems_mut(self)
+                    }
+
+                    #[doc = self::$module::docs!(as_elems_unchecked)]
+                    #[inline(always)]
+                    #[track_caller]
+                    unsafe fn as_elems_unchecked<'a>(
+                        &'a self,
+                    ) -> &'a [$elem] {
+                        // SAFETY: The caller ensures this is safe.
+                        unsafe { as_elems_unchecked(self) }
+                    }
+
+                    #[doc = self::$module::docs!(as_elems_mut_unchecked)]
+                    #[inline(always)]
+                    #[track_caller]
+                    unsafe fn as_elems_mut_unchecked<'a>(
+                        &'a mut self,
+                    ) -> &'a mut [$elem] {
+                        // SAFETY: The caller ensures this is safe.
+                        unsafe { as_elems_mut_unchecked(self) }
+                    }
+
+                    #[doc = self::$module::docs!(validate_split_at)]
+                    #[inline(always)]
+                    #[track_caller]
+                    fn validate_split_at<'a>(
+                        &'a self,
+                        index: usize,
+                    ) -> Result<(), SplitError<$slice>> {
+                        validate_split_at(self, index)
+                    }
+
+                    #[doc = self::$module::docs!(split_at_unchecked)]
+                    #[inline(always)]
+                    #[track_caller]
+                    unsafe fn split_at_unchecked<'a>(
+                        &'a self,
+                        index: usize,
+                    ) -> Split<'a, $slice> {
+                        unsafe { split_at_unchecked(self, index) }
+                    }
+
+
+                    #[doc = self::$module::docs!(split_at_mut_unchecked)]
+                    #[inline(always)]
+                    #[track_caller]
+                    unsafe fn split_at_mut_unchecked<'a>(
+                        &'a mut self,
+                        index: usize,
+                    ) -> SplitMut<'a, $slice> {
+                        unsafe { split_at_mut_unchecked(self, index) }
+                    }
+
+                    #[doc = self::$module::docs!(try_split_at)]
+                    #[inline(always)]
+                    #[track_caller]
+                    fn try_split_at<'a>(
+                        &'a self,
+                        index: usize,
+                    ) -> Result<Split<'a, $slice>, SplitError<$slice>> {
+                        try_split_at(self, index)
+                    }
+
+                    #[doc = self::$module::docs!(try_split_at_mut)]
+                    #[inline(always)]
+                    #[track_caller]
+                    fn try_split_at_mut<'a>(
+                        &'a mut self,
+                        index: usize,
+                    ) -> Result<SplitMut<'a, $slice>, SplitError<$slice>> {
+                        try_split_at_mut(self, index)
+                    }
+
+                    #[doc = self::$module::docs!(split_at)]
+                    #[inline(always)]
+                    #[track_caller]
+                    fn split_at<'a>(
+                        &'a self,
+                        index: usize,
+                    ) -> Split<'a, $slice> {
+                        split_at(self, index)
+                    }
+
+                    #[doc = self::$module::docs!(split_at_mut)]
+                    #[inline(always)]
+                    #[track_caller]
+                    fn split_at_mut<'a>(
+                        &'a mut self,
+                        index: usize,
+                    ) -> SplitMut<'a, $slice> {
+                        split_at_mut(self, index)
+                    }
                 }
 
-                #[doc = self::$module::docs!(is_empty)]
-                #[inline(always)]
-                #[track_caller]
-                fn is_empty(&self) -> bool {
-                    is_empty(self)
+                impl $(< $($gen)* >)? From<$from_elems> for FromElemsError<$slice> {
+                    #[inline]
+                    fn from(
+                        error: $from_elems,
+                    ) -> FromElemsError<$slice> {
+                        FromElemsError(error)
+                    }
                 }
 
-                #[doc = self::$module::docs!(raw_slice)]
-                #[inline(always)]
-                #[track_caller]
-                fn raw_slice(data: *const $elem, len: usize) -> *const $slice {
-                    raw_slice(data, len)
+                impl $(< $($gen)* >)? From<FromElemsError<$slice>> for $from_elems {
+                    #[inline]
+                    fn from(
+                        error: FromElemsError<$slice>,
+                    ) -> $from_elems {
+                        error.0
+                    }
                 }
 
-                #[doc = $module::docs!(raw_slice_mut)]
-                #[inline(always)]
-                #[track_caller]
-                fn raw_slice_mut(data: *mut $elem, len: usize) -> *mut $slice {
-                    raw_slice_mut(data, len)
+                impl $(< $($gen)* >)? From<$as_elems> for AsElemsError<$slice> {
+                    #[inline]
+                    fn from(
+                        error: $as_elems,
+                    ) -> AsElemsError<$slice> {
+                        AsElemsError(error)
+                    }
                 }
 
-                #[doc = self::$module::docs!(raw_slice_nonnull)]
-                #[inline(always)]
-                #[track_caller]
-                fn raw_slice_nonnull(data: NonNull<$elem>, len: usize) -> NonNull<$slice> {
-                    raw_slice_nonnull(data, len)
+                impl $(< $($gen)* >)? From<AsElemsError<$slice>> for $as_elems {
+                    #[inline]
+                    fn from(
+                        error: AsElemsError<$slice>,
+                    ) -> $as_elems {
+                        error.0
+                    }
                 }
 
-                #[doc = self::$module::docs!(from_raw_parts)]
-                #[inline(always)]
-                #[track_caller]
-                unsafe fn from_raw_parts<'a>(data: *const $elem, len: usize) -> &'a $slice {
-                    // SAFETY: The caller ensures this is safe.
-                    unsafe { from_raw_parts(data, len) }
+                impl $(< $($gen)* >)? From<$split> for SplitError<$slice> {
+                    #[inline]
+                    fn from(
+                        error: $split,
+                    ) -> SplitError<$slice> {
+                        SplitError::Other(error)
+                    }
                 }
 
-                #[doc = self::$module::docs!(from_raw_parts_mut)]
-                #[inline(always)]
-                #[track_caller]
-                unsafe fn from_raw_parts_mut<'a>(data: *mut $elem, len: usize) -> &'a mut $slice {
-                    // SAFETY: The caller ensures this is safe.
-                    unsafe { from_raw_parts_mut(data, len) }
-                }
+                impl $(< $($gen)* >)? TryFrom<SplitError<$slice>> for $split {
+                    type Error = FromSplitErrorFailure;
 
-                #[doc = self::$module::docs!(try_from_elems)]
-                #[inline(always)]
-                #[track_caller]
-                fn try_from_elems<'a>(elems: &'a [Self::Elem]) -> Result<&'a Self, FromElemsError<Self>> {
-                    try_from_elems(elems)
+                    #[inline]
+                    fn try_from(
+                        error: SplitError<$slice>,
+                    ) -> Result<$split, FromSplitErrorFailure> {
+                        match error {
+                            SplitError::Other(error) => Ok(error),
+                            SplitError::OutOfBounds { .. } => Err(FromSplitErrorFailure::NotOther),
+                        }
+                    }
                 }
-
-                #[doc = self::$module::docs!(try_from_elems_mut)]
-                #[inline(always)]
-                #[track_caller]
-                fn try_from_elems_mut<'a>(elems: &'a mut [Self::Elem]) -> Result<&'a mut Self, FromElemsError<Self>> {
-                    try_from_elems_mut(elems)
-                }
-
-                #[doc = self::$module::docs!(from_elems)]
-                #[inline(always)]
-                #[track_caller]
-                fn from_elems<'a>(elems: &'a [Self::Elem]) -> &'a Self {
-                    from_elems(elems)
-                }
-
-                #[doc = self::$module::docs!(from_elems_mut)]
-                #[inline(always)]
-                #[track_caller]
-                fn from_elems_mut<'a>(elems: &'a mut [Self::Elem]) -> &'a mut Self {
-                    from_elems_mut(elems)
-                }
-
-                #[doc = self::$module::docs!(from_elems_unchecked)]
-                #[inline(always)]
-                #[track_caller]
-                unsafe fn from_elems_unchecked<'a>(elems: &'a [Self::Elem]) -> &'a Self {
-                    // SAFETY: The caller ensures this is safe.
-                    unsafe { from_elems_unchecked(elems) }
-                }
-
-                #[doc = self::$module::docs!(from_elems_mut_unchecked)]
-                #[inline(always)]
-                #[track_caller]
-                unsafe fn from_elems_mut_unchecked<'a>(elems: &'a mut [Self::Elem]) -> &'a mut Self {
-                    // SAFETY: The caller ensures this is safe.
-                    unsafe { from_elems_mut_unchecked(elems) }
-                }
-
-                #[doc = self::$module::docs!(try_as_elems)]
-                #[inline(always)]
-                #[track_caller]
-                fn try_as_elems<'a>(&'a self) -> Result<&'a [Self::Elem], AsElemsError<Self>> {
-                    try_as_elems(self)
-                }
-
-                #[doc = self::$module::docs!(try_as_elems_mut)]
-                #[inline(always)]
-                #[track_caller]
-                fn try_as_elems_mut<'a>(&'a mut self) -> Result<&'a mut [Self::Elem], AsElemsError<Self>> {
-                    try_as_elems_mut(self)
-                }
-
-                #[doc = self::$module::docs!(as_elems)]
-                #[inline(always)]
-                #[track_caller]
-                fn as_elems<'a>(&'a self) -> &'a [Self::Elem] {
-                    as_elems(self)
-                }
-
-                #[doc = self::$module::docs!(as_elems_mut)]
-                #[inline(always)]
-                #[track_caller]
-                fn as_elems_mut<'a>(&'a mut self) -> &'a mut [Self::Elem] {
-                    as_elems_mut(self)
-                }
-
-                #[doc = self::$module::docs!(as_elems_unchecked)]
-                #[inline(always)]
-                #[track_caller]
-                unsafe fn as_elems_unchecked<'a>(&'a self) -> &'a [Self::Elem] {
-                    // SAFETY: The caller ensures this is safe.
-                    unsafe { as_elems_unchecked(self) }
-                }
-
-                #[doc = self::$module::docs!(as_elems_mut_unchecked)]
-                #[inline(always)]
-                #[track_caller]
-                unsafe fn as_elems_mut_unchecked<'a>(&'a mut self) -> &'a mut [Self::Elem] {
-                    // SAFETY: The caller ensures this is safe.
-                    unsafe { as_elems_mut_unchecked(self) }
-                }
-            }
+            };
         )+
 
         #[allow(dead_code)]
@@ -1294,6 +1792,207 @@ macro_rules! slice {
                     )*
                 }
             }
+
+            #[inline(always)]
+            #[track_caller]
+            const fn validate_split_at<'a>(
+                self,
+                slice: &'a S,
+                index: usize,
+            ) -> Result<(), SplitError<S>> {
+                let this = slice;
+
+                match self {
+                    $(
+                        $(#[cfg($($cfg)*)])*
+                        Self::$variant {
+                            slice,
+                            ..
+                        } => TypeEq::<(), ()>::new()
+                            .wrap_result(slice.wrap_split_error())
+                            .uncoerce(
+                                self::$module::validate_split_at(
+                                    slice.coerce_ref(this),
+                                    index,
+                                ),
+                            ),
+                    )*
+                }
+            }
+
+            #[inline(always)]
+            #[must_use]
+            #[track_caller]
+            const unsafe fn split_at_unchecked<'a>(
+                self,
+                slice: &'a S,
+                index: usize,
+            ) -> Split<'a, S> {
+                let this = slice;
+
+                match self {
+                    $(
+                        $(#[cfg($($cfg)*)])*
+                        Self::$variant {
+                            slice,
+                            ..
+                        } => slice
+                            .wrap_ref()
+                            .zip(slice.wrap_ref())
+                            .uncoerce(unsafe {
+                                self::$module::split_at_unchecked(
+                                    slice.coerce_ref(this),
+                                    index,
+                                )
+                            }),
+                    )*
+                }
+            }
+
+            #[inline(always)]
+            #[must_use]
+            #[track_caller]
+            const unsafe fn split_at_mut_unchecked<'a>(
+                self,
+                slice: &'a mut S,
+                index: usize,
+            ) -> SplitMut<'a, S> {
+                let this = slice;
+
+                match self {
+                    $(
+                        $(#[cfg($($cfg)*)])*
+                        Self::$variant {
+                            slice,
+                            ..
+                        } => slice
+                            .wrap_mut()
+                            .zip(slice.wrap_mut())
+                            .uncoerce(unsafe {
+                                self::$module::split_at_mut_unchecked(
+                                    slice.coerce_mut(this),
+                                    index,
+                                )
+                            }),
+                    )*
+                }
+            }
+
+            #[inline(always)]
+            #[track_caller]
+            const fn try_split_at<'a>(
+                self,
+                slice: &'a S,
+                index: usize,
+            ) -> Result<Split<'a, S>, SplitError<S>> {
+                let this = slice;
+
+                match self {
+                    $(
+                        $(#[cfg($($cfg)*)])*
+                        Self::$variant {
+                            slice,
+                            ..
+                        } => slice
+                            .wrap_ref()
+                            .zip(slice.wrap_ref())
+                            .wrap_result(slice.wrap_split_error())
+                            .uncoerce(
+                                self::$module::try_split_at(
+                                    slice.coerce_ref(this),
+                                    index,
+                                ),
+                            ),
+                    )*
+                }
+            }
+
+            #[inline(always)]
+            #[track_caller]
+            const fn try_split_at_mut<'a>(
+                self,
+                slice: &'a mut S,
+                index: usize,
+            ) -> Result<SplitMut<'a, S>, SplitError<S>> {
+                let this = slice;
+
+                match self {
+                    $(
+                        $(#[cfg($($cfg)*)])*
+                        Self::$variant {
+                            slice,
+                            ..
+                        } => slice
+                            .wrap_mut()
+                            .zip(slice.wrap_mut())
+                            .wrap_result(slice.wrap_split_error())
+                            .uncoerce(
+                                self::$module::try_split_at_mut(
+                                    slice.coerce_mut(this),
+                                    index,
+                                ),
+                            ),
+                    )*
+                }
+            }
+
+            #[inline(always)]
+            #[must_use]
+            #[track_caller]
+            const fn split_at<'a>(
+                self,
+                slice: &'a S,
+                index: usize,
+            ) -> Split<'a, S> {
+                let this = slice;
+
+                match self {
+                    $(
+                        $(#[cfg($($cfg)*)])*
+                        Self::$variant {
+                            slice,
+                            ..
+                        } => slice
+                            .wrap_ref()
+                            .zip(slice.wrap_ref())
+                            .uncoerce(
+                                self::$module::split_at(
+                                    slice.coerce_ref(this),
+                                    index,
+                                ),
+                            ),
+                    )*
+                }
+            }
+
+            #[inline(always)]
+            #[must_use]
+            #[track_caller]
+            const fn split_at_mut<'a>(
+                self,
+                slice: &'a mut S,
+                index: usize,
+            ) -> SplitMut<'a, S> {
+                let this = slice;
+
+                match self {
+                    $(
+                        $(#[cfg($($cfg)*)])*
+                        Self::$variant {
+                            slice,
+                            ..
+                        } => slice
+                            .wrap_mut()
+                            .zip(slice.wrap_mut())
+                            .uncoerce(
+                                self::$module::split_at_mut(
+                                    slice.coerce_mut(this),
+                                    index,
+                                ),
+                            ),
+                    )*
+                }
+            }
         }
 
         // We're going to keep error handlers separate, just for my sanity.
@@ -1414,6 +2113,22 @@ macro_rules! slice {
                     )*
                 }
             }
+
+            #[inline(always)]
+            #[track_caller]
+            const fn split_error_index<'a>(
+                self,
+                error: &'a S::SplitErr,
+            ) -> usize {
+                match self {
+                    $(
+                        $(#[cfg($($cfg)*)])*
+                        Self::$variant { split_error, .. } => self::$module::split_error_index(
+                            split_error.coerce_ref(error),
+                        ),
+                    )*
+                }
+            }
         }
     };
 }
@@ -1427,20 +2142,41 @@ slice! {
         type SplitErr = Infallible;
 
         type Variant = Slice;
-        type Module = slice;
+        type Module = pub(crate) slice;
     }
 
     unsafe impl Slice for str {
         type Elem = u8;
 
         type FromElemsErr = Utf8Error;
-        type AsElemsErr = StrAsElemsError;
-        type SplitErr = StrSplitError;
+        type AsElemsErr = crate::str::StrAsElemsError;
+        type SplitErr = crate::str::StrSplitError;
 
         type Variant = Str;
-        type Module = str;
+        type Module = pub(crate) str;
     }
 }
 
-#[doc(inline)]
-pub use self::str::*;
+/// This is a private method for unsafely and forcibly handling split errors. This primarily
+/// exists to get better codegen for panicking slice functions.
+///
+/// # Safety
+///
+/// The caller *must* ensure that it is invalid to split at `index`. Failure to do so is
+/// *undefined behavior*.
+#[inline(never)]
+#[track_caller]
+#[cold]
+pub(crate) const unsafe fn split_error_handler<'a, S>(
+    slice: &'a S,
+    index: usize,
+) -> !
+where
+    S: Slice + ?Sized,
+{
+    match NoDrop::new(validate_split_at(slice, index)).transpose() {
+        Err(error) => error.into_inner().panic(),
+        // SAFETY: The caller ensures it is not valid to split at `index`.
+        Ok(..) => unsafe { unreachable_unchecked!("it is valid to split `slice` at `index`") },
+    }
+}
