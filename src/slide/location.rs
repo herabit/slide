@@ -193,15 +193,3 @@ where
     /// Offset location type.
     Location(TypeEq<O, Location<S>>),
 }
-
-// impl<O, S> Clone for OffsetFromWit<O, S>
-// where
-//     S: Slice + ?Sized,
-// {
-//     #[inline]
-//     fn clone(&self) -> Self {
-//         *self
-//     }
-// }
-
-// impl<O, S> Copy for OffsetFromWit<O, S> where S: Slice + ?Sized {}

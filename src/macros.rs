@@ -76,7 +76,7 @@ macro_rules! _assert_unchecked {
     ($cond:expr, $first:tt $(, $($rest:tt)*)?) => {
         $crate::util::__assert_unchecked(
             $cond,
-            || ::core::format_args!(
+            ::core::format_args!(
                 ::core::concat!(
                     "undefined behavior: ",
                     $first
