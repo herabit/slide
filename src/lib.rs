@@ -35,3 +35,6 @@ pub mod slice;
 
 /// Module for handling slice bounds.
 pub mod bounds;
+
+/// Where the actual slide types reside.
+pub mod slide;
