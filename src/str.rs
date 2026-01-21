@@ -72,11 +72,13 @@ pub const fn floor_char_boundary(
                 }
             }
 
-            // SAFETY: Unless `s` is ill-formed UTF-8, which is by definition undefined behavior, we know we have breaked out from the loop
-            //         into `'block` already. This is because in valid UTF-8, there is always at least one character boundary within the preceding
+            // SAFETY: Unless `s` is ill-formed UTF-8, which is by definition undefined behavior,
+            //         we know we have broke out from the loop into `'block` already. This is because
+            //         in valid UTF-8, there is always at least one character boundary within the preceding
             //         4 or less bytes before a given index, provided the index is in bounds for the string.
             //
-            //         So, if we fail to exit the loop before this, then `s` is ill-formed, and the existence of it is undefined behavior anyways.
+            //         So, if we fail to exit the loop before this, then `s` is ill-formed, and the existence
+            //         of it is undefined behavior anyways.
             unsafe { unreachable_unchecked!("`s` contains ill-formed UTF-8") }
         }
     };

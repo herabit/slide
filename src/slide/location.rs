@@ -25,7 +25,7 @@ where
     ///
     /// # Safety
     ///
-    /// The caller must ensure `start.add(offset)` is within the bounds of the allocated object for `start`.
+    /// The caller must ensure that `start.add(offset)` is within the bounds of the same *allocated object* as `start`.
     #[inline(always)]
     #[must_use]
     #[track_caller]
