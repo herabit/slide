@@ -448,12 +448,16 @@ impl OobIndex {
         match self.repr.get() {
             // SAFETY: It is impossible for the value to be smaller than `isize::MIN`.
             ..NEG_START => unsafe { unreachable_unchecked!("`repr < isize::MIN`") },
+
             // NOTE: We're in the range of valid negative `isize`s.
             repr @ NEG_START..0 => Err(NonZero::new(repr as isize).unwrap()),
+
             // SAFETY: `repr` is nonzero.
             0 => unsafe { unreachable_unchecked!("`repr == 0`") },
+
             // NOTE: We're in the range of positive (non-zero) `usize`s.
             repr @ 1..POS_END => Ok(NonZero::new(repr as usize).unwrap()),
+
             // SAFETY: It is impossible for the value to be larger than `usize::MAX`.
             POS_END.. => unsafe { unreachable_unchecked!("`repr > usize::MAX`") },
         }
