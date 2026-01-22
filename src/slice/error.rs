@@ -393,7 +393,7 @@ impl OobIndex {
     ///
     /// # Returns
     ///
-    /// Returns `None` if `x` is not positive.
+    /// Returns `None` if `x` is not positive (equal to zero).
     #[inline(always)]
     #[must_use]
     #[track_caller]
@@ -425,6 +425,46 @@ impl OobIndex {
         }
     }
 
+    /// Attempt to create a new [`OobIndex`] from a [`prim@usize`].
+    ///
+    /// # Returns
+    ///
+    /// Returns `None` if `x` is zero.
+    ///
+    /// # Note
+    ///
+    /// While the implementation of this is the same as [`OobIndex::from_positive`],
+    /// it semantically exists to be the unsigned variant of [`OobIndex::from_signed`].
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub const fn from_unsigned(x: usize) -> Option<OobIndex> {
+        OobIndex::from_positive(x)
+    }
+
+    /// Attempt to create a new [`OobIndex`] from a [`prim@isize`].
+    ///
+    /// # Returns
+    ///
+    /// Returns `None` if `x` is zero.
+    ///
+    /// # Note
+    ///
+    /// This is *not* the same as [`OobIndex::from_negative`]. This function
+    /// also accepts positive [`prim@isize`]s.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub const fn from_signed(x: isize) -> Option<OobIndex> {
+        if x != 0 {
+            Some(OobIndex {
+                repr: NonZero::new(x as _OobIndex).unwrap(),
+            })
+        } else {
+            None
+        }
+    }
+
     /// Attempt to get the stored value as a positive number.
     ///
     /// # Returns
@@ -433,8 +473,9 @@ impl OobIndex {
     #[inline(always)]
     #[track_caller]
     pub const fn as_positive(self) -> Result<NonZero<usize>, NonZero<isize>> {
+        // The start of the valid negative range.
         const NEG_START: _OobIndex = OobIndex::MIN.repr.get();
-        // We want to use an exclusive range so we increment by 1.
+        // The end of the valid positive range.
         const POS_END: _OobIndex = OobIndex::MAX.repr.get() + 1;
 
         match self.repr.get() {
@@ -444,10 +485,10 @@ impl OobIndex {
             // NOTE: We're in the range of valid negative `isize`s.
             repr @ NEG_START..0 => Err(NonZero::new(repr as isize).unwrap()),
 
-            // SAFETY: `repr` is nonzero.
+            // SAFETY: `repr` is non-zero.
             0 => unsafe { unreachable_unchecked!("`repr == 0`") },
 
-            // NOTE: We're in the range of positive (non-zero) `usize`s.
+            // NOTE: We're in the range of valid positive `usize`s.
             repr @ 1..POS_END => Ok(NonZero::new(repr as usize).unwrap()),
 
             // SAFETY: It is impossible for the value to be larger than `usize::MAX`.
@@ -466,6 +507,65 @@ impl OobIndex {
         match self.as_positive() {
             Ok(positive) => Err(positive),
             Err(negative) => Ok(negative),
+        }
+    }
+
+    /// Attempt to get the stored value as a [`prim@usize`].
+    ///
+    /// # Returns
+    ///
+    /// Returns `Err(signed)` if `x` is too small to be represented
+    /// as a [`prim@usize`].
+    ///
+    /// # Note
+    ///
+    /// While the implementation of this is the same as [`OobIndex::as_positive`],
+    /// it semantically exists to be the unsigned variant of [`OobIndex::as_signed`].
+    #[inline(always)]
+    #[track_caller]
+    pub const fn as_unsigned(self) -> Result<NonZero<usize>, NonZero<isize>> {
+        self.as_positive()
+    }
+
+    /// Attempt to get the stored value as a [`prim@isize`].
+    ///
+    /// # Returns
+    ///
+    /// Returns `Err(unsigned)` if `x` is too large to be represented
+    /// as an [`prim@isize`].
+    ///
+    /// # Note
+    ///
+    /// This is *not* the same as [`OobIndex::as_negative`], as this
+    /// function may also return a positive [`prim@isize`].
+    #[inline(always)]
+    #[track_caller]
+    pub const fn as_signed(self) -> Result<NonZero<isize>, NonZero<usize>> {
+        // The start of the valid negative range.
+        const NEG_START: _OobIndex = OobIndex::MIN.repr.get();
+        // The end of the valid positive range.
+        const UNSIGNED_START: _OobIndex = (isize::MAX as _OobIndex) + 1;
+        // The end of the valid unsigned positive range.
+        const UNSIGNED_END: _OobIndex = OobIndex::MAX.repr.get();
+
+        match self.repr.get() {
+            // SAFETY: It is impossible for the value to be smaller than `isize::MIN`.
+            ..NEG_START => unsafe { unreachable_unchecked!("`repr < isize::MIN`") },
+
+            // NOTE: We're in the range of valid negative `isize`s.
+            repr @ NEG_START..0 => Ok(NonZero::new(repr as isize).unwrap()),
+
+            // SAFETY: `repr` is non-zero.
+            0 => unsafe { unreachable_unchecked!("`repr == 0`") },
+
+            // NOTE: We're in the range of valid positive `isize`s.
+            repr @ 1..UNSIGNED_START => Ok(NonZero::new(repr as isize).unwrap()),
+
+            // NOTE: We're in the range of valid positive `usize`s.
+            repr @ UNSIGNED_START..UNSIGNED_END => Err(NonZero::new(repr as usize).unwrap()),
+
+            // SAFETY: It is impossible for the value to be larger than `usize::MAX`.
+            UNSIGNED_END.. => unsafe { unreachable_unchecked!("`repr > usize::MAX`") },
         }
     }
 
