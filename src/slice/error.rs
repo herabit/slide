@@ -1,14 +1,6 @@
-use core::{
-    cmp::Ordering,
-    error::Error,
-    fmt, hash, mem,
-    num::{NonZero, TryFromIntError},
-};
+use core::{cmp::Ordering, error::Error, fmt, hash, mem, num::NonZero};
 
-use crate::{
-    macros::{assert_unchecked, unreachable_unchecked},
-    slice::Slice,
-};
+use crate::{macros::unreachable_unchecked, slice::Slice};
 
 /// The error type that is returned when creating
 /// a slice from its component elements.
@@ -23,10 +15,10 @@ impl<S> FromElemsError<S>
 where
     S: Slice + ?Sized,
 {
-    /// Panics with an error message corresponding to this error.
+    /// Panics with an error message corresponding to this error.    
+    #[inline(never)]
     #[track_caller]
     #[cold]
-    #[inline(never)]
     pub const fn panic(self) -> ! {
         S::KIND.0.handle_from_elems_error(self.0)
     }
@@ -41,10 +33,10 @@ where
     /// optimizations are valid.
     ///
     /// Proceed with caution.
-    #[track_caller]
-    #[cold]
     #[cfg_attr(debug_assertions, inline(never))]
     #[cfg_attr(not(debug_assertions), inline(always))]
+    #[track_caller]
+    #[cold]
     pub const unsafe fn panic_unchecked(self) -> ! {
         // SAFETY: The caller ensures it is impossible to reach this code.
         unsafe { S::KIND.0.handle_from_elems_error_unchecked(self.0) }
@@ -203,9 +195,9 @@ where
     S: Slice + ?Sized,
 {
     /// Panics with an error message corresponding to this error.
+    #[inline(never)]
     #[track_caller]
     #[cold]
-    #[inline(never)]
     pub const fn panic(self) -> ! {
         S::KIND.0.handle_as_elems_error(self.0)
     }
@@ -220,10 +212,10 @@ where
     /// optimizations are valid.
     ///
     /// Proceed with caution.
-    #[track_caller]
-    #[cold]
     #[cfg_attr(debug_assertions, inline(never))]
     #[cfg_attr(not(debug_assertions), inline(always))]
+    #[track_caller]
+    #[cold]
     pub const unsafe fn panic_unchecked(self) -> ! {
         // SAFETY: The caller ensures it is impossible to reach this code.
         unsafe { S::KIND.0.handle_as_elems_error_unchecked(self.0) }
@@ -574,7 +566,7 @@ where
     /// The index is out of bounds of the length.
     OutOfBounds {
         /// The index that is out of bounds.
-        index: NonZero<usize>,
+        index: OobIndex,
         /// The length of the slice.
         len: usize,
     },
@@ -587,25 +579,30 @@ where
     S: Slice + ?Sized,
 {
     /// Returns the index that caused this error.
-    #[inline]
+    #[inline(always)]
+    #[track_caller]
     #[must_use]
     pub const fn index(&self) -> Option<usize> {
         match self {
-            // SplitError::OutOfBounds { index, .. } if index.get() <= (usize::MAX as OobIndex) => {
-            //     todo!()
-            // }
+            SplitError::OutOfBounds { index, .. } => match index.as_positive() {
+                Ok(index) => Some(index.get()),
+                Err(..) => None,
+            },
             SplitError::Other(error) => Some(S::KIND.0.split_error_index(error)),
-            _ => None,
         }
     }
 
     /// Panics with an error message corresponding to this error.
+    #[inline(never)]
     #[track_caller]
     #[cold]
-    #[inline(never)]
     pub const fn panic(self) -> ! {
         match self {
-            SplitError::OutOfBounds { .. } => panic!("index is out of bounds: `index >= len`"),
+            // SplitError::OutOfBounds { .. } => panic!("index is out of bounds: `index >= len`"),i
+            SplitError::OutOfBounds { index, .. } => match index.as_positive() {
+                Ok(..) => panic!("index is out of bounds: `index >= len`"),
+                Err(..) => panic!("index is out of bounds: `index < 0`"),
+            },
             SplitError::Other(error) => S::KIND.0.handle_split_error(error),
         }
     }
@@ -620,15 +617,18 @@ where
     /// optimizations are valid.
     ///
     /// Proceed with caution.
-    #[track_caller]
-    #[cold]
     #[cfg_attr(debug_assertions, inline(never))]
     #[cfg_attr(not(debug_assertions), inline(always))]
+    #[track_caller]
+    #[cold]
     pub const unsafe fn panic_unchecked(self) -> ! {
         // SAFETY: The caller ensures it is imppossible to reach this code.
         match self {
-            SplitError::OutOfBounds { .. } => unsafe {
-                unreachable_unchecked!("index is out of bounds: `index >= len`")
+            SplitError::OutOfBounds { index, .. } => match index.as_positive() {
+                Ok(..) => unsafe {
+                    unreachable_unchecked!("index is out of bounds: `index >= len`")
+                },
+                Err(..) => unsafe { unreachable_unchecked!("index is out of bounds: `index < 0`") },
             },
             SplitError::Other(error) => unsafe { S::KIND.0.handle_split_error_unchecked(error) },
         }
@@ -684,9 +684,10 @@ where
         f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         match self {
-            SplitError::OutOfBounds { index, len } => {
-                core::write!(f, "index is out of bounds: `{index} >= {len}`")
-            }
+            SplitError::OutOfBounds { index, len } => match index.as_positive() {
+                Ok(index) => core::write!(f, "index is out of bounds: `{index} >= {len}`"),
+                Err(index) => core::write!(f, "index is out of bounds: `{index} < 0`"),
+            },
             SplitError::Other(other) => other.fmt(f),
         }
     }
@@ -831,7 +832,10 @@ where
     #[inline]
     fn description(&self) -> &str {
         match self {
-            SplitError::OutOfBounds { .. } => "index is out of bounds: `index >= len`",
+            SplitError::OutOfBounds { index, .. } => match index.as_positive() {
+                Ok(..) => "index is out of bounds: `index >= len`",
+                Err(..) => "index is out of bounds: `index < 0`",
+            },
             SplitError::Other(error) => error.description(),
         }
     }

@@ -1,7 +1,6 @@
 use core::{
     cmp::Ordering,
     fmt, mem,
-    num::NonZero,
     ptr::{self, NonNull},
     slice,
     str::Utf8Error,
@@ -9,7 +8,9 @@ use core::{
 
 use crate::{
     macros::unreachable_unchecked,
-    slice::{AsElemsError, FromElemsError, Split, SplitError, SplitMut, split_error_handler},
+    slice::{
+        AsElemsError, FromElemsError, OobIndex, Split, SplitError, SplitMut, split_error_handler,
+    },
     str::is_utf8_char_boundary,
     util::cmp_usize,
 };
@@ -346,7 +347,7 @@ methods! {
                 Ordering::Equal => Ok(()),
                 // NOTE: If `index > slice.len()`, then it is out of bounds.
                 Ordering::Greater => Err(SplitError::OutOfBounds {
-                    index: NonZero::new(index).unwrap(),
+                    index: OobIndex::from_positive(index).unwrap(),
                     len: slice.len(),
                 }),
                 // NOTE: If `index < slice.len()` and the byte at `index` is a valid UTF-8 character boundary,

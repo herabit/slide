@@ -1,13 +1,14 @@
 use core::{
     cmp::Ordering,
     convert::Infallible,
-    num::NonZero,
     ptr::{self, NonNull},
     slice,
 };
 
 use crate::{
-    slice::{AsElemsError, FromElemsError, Split, SplitError, SplitMut, split_error_handler},
+    slice::{
+        AsElemsError, FromElemsError, OobIndex, Split, SplitError, SplitMut, split_error_handler,
+    },
     util::cmp_usize,
 };
 
@@ -283,7 +284,7 @@ methods! {
             Ordering::Less | Ordering::Equal => Ok(()),
             // NOTE: If `index > slice.len()`, then it is out of bounds.
             Ordering::Greater => Err(SplitError::OutOfBounds {
-                index: NonZero::new(index).unwrap(),
+                index: OobIndex::from_positive(index).unwrap(),
                 len: slice.len(),
             }),
         }
