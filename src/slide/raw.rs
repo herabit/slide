@@ -1,10 +1,11 @@
-use core::ptr::NonNull;
+use core::{cmp::Ordering, num::NonZero, ptr::NonNull};
 
 use crate::{
     macros::assert_unchecked,
     mem::NoDrop,
-    slice::{Slice, SplitError, len, raw_slice_nonnull, validate_split_at},
+    slice::{OobIndex, Slice, SplitError, len, raw_slice_nonnull, validate_split_at},
     slide::location::Location,
+    util::cmp_usize,
 };
 
 /// An unsafe slide that is used to implement the other, "real" slides.
@@ -440,8 +441,15 @@ where
     ) -> Result<(), SplitError<S>> {
         // SAFETY: The caller ensures that it is safe to create a temporary reference
         //         to validate whether we're able to rewind the cursor.
-        let _consumed = unsafe { self.consumed_ref() };
-        todo!()
+        let consumed = unsafe { self.consumed_ref() };
+
+        match cmp_usize(amount, len(consumed)) {
+            Ordering::Less | Ordering::Equal => validate_split_at(consumed, len(consumed) - amount),
+            Ordering::Greater => Err(SplitError::OutOfBounds {
+                index: NonZero::new(len(consumed) as OobIndex - amount as OobIndex).unwrap(),
+                len: len(consumed),
+            }),
+        }
     }
 }
 

@@ -1,6 +1,7 @@
 use core::{
     cmp::Ordering,
     convert::Infallible,
+    num::NonZero,
     ptr::{self, NonNull},
     slice,
 };
@@ -284,7 +285,7 @@ methods! {
             Ordering::Less | Ordering::Equal => Ok(()),
             // NOTE: If `index > slice.len()`, then it is out of bounds.
             Ordering::Greater => Err(SplitError::OutOfBounds {
-                index: OobIndex::from_positive(index).unwrap(),
+                index: NonZero::new(index as OobIndex).unwrap(),
                 len: slice.len(),
             }),
         }

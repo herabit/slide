@@ -372,291 +372,10 @@ type _OobIndex = i64;
 #[allow(clippy::missing_docs_in_private_items)]
 type _OobIndex = i128;
 
-/// A type for out-of-bounds errors.
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[repr(transparent)]
-pub struct OobIndex {
-    /// SAFETY: This value is either *positive* or *negative*. It is *never zero*.
-    ///
-    ///         If it is negative, then it must fit inside a [`prim@isize`]. Otherwise,
-    ///         if it is positive, then it must fit inside a [`prim@usize`].
-    repr: NonZero<_OobIndex>,
-}
-
-impl OobIndex {
-    /// The minimum supported index. This is equivalent to [`isize::MIN`].
-    pub const MIN: OobIndex = OobIndex::from_negative(isize::MIN).unwrap();
-    /// The maximum supported index. This is equivalent to [`usize::MIN`].
-    pub const MAX: OobIndex = OobIndex::from_positive(usize::MAX).unwrap();
-
-    /// Attempt to create a new [`OobIndex`] from a positive index.
-    ///
-    /// # Returns
-    ///
-    /// Returns `None` if `x` is not positive (equal to zero).
-    #[inline(always)]
-    #[must_use]
-    #[track_caller]
-    pub const fn from_positive(x: usize) -> Option<OobIndex> {
-        if x > 0 {
-            Some(OobIndex {
-                repr: NonZero::new(x as _OobIndex).unwrap(),
-            })
-        } else {
-            None
-        }
-    }
-
-    /// Attempt to create a new [`OobIndex`] from a negative index.
-    ///
-    /// # Returns
-    ///
-    /// Returns `None` if `x` is not negative.
-    #[inline(always)]
-    #[must_use]
-    #[track_caller]
-    pub const fn from_negative(x: isize) -> Option<OobIndex> {
-        if x < 0 {
-            Some(OobIndex {
-                repr: NonZero::new(x as _OobIndex).unwrap(),
-            })
-        } else {
-            None
-        }
-    }
-
-    /// Attempt to create a new [`OobIndex`] from a [`prim@usize`].
-    ///
-    /// # Returns
-    ///
-    /// Returns `None` if `x` is zero.
-    ///
-    /// # Note
-    ///
-    /// While the implementation of this is the same as [`OobIndex::from_positive`],
-    /// it semantically exists to be the unsigned variant of [`OobIndex::from_signed`].
-    #[inline(always)]
-    #[must_use]
-    #[track_caller]
-    pub const fn from_unsigned(x: usize) -> Option<OobIndex> {
-        OobIndex::from_positive(x)
-    }
-
-    /// Attempt to create a new [`OobIndex`] from a [`prim@isize`].
-    ///
-    /// # Returns
-    ///
-    /// Returns `None` if `x` is zero.
-    ///
-    /// # Note
-    ///
-    /// This is *not* the same as [`OobIndex::from_negative`]. This function
-    /// also accepts positive [`prim@isize`]s.
-    #[inline(always)]
-    #[must_use]
-    #[track_caller]
-    pub const fn from_signed(x: isize) -> Option<OobIndex> {
-        if x != 0 {
-            Some(OobIndex {
-                repr: NonZero::new(x as _OobIndex).unwrap(),
-            })
-        } else {
-            None
-        }
-    }
-
-    /// Attempt to get the stored value as a positive number.
-    ///
-    /// # Returns
-    ///
-    /// Returns `Err(negative)` if `x` is not positive.
-    #[inline(always)]
-    #[track_caller]
-    pub const fn as_positive(self) -> Result<NonZero<usize>, NonZero<isize>> {
-        // The start of the valid negative range.
-        const NEG_START: _OobIndex = OobIndex::MIN.repr.get();
-        // The end of the valid positive range.
-        const POS_END: _OobIndex = OobIndex::MAX.repr.get() + 1;
-
-        match self.repr.get() {
-            // SAFETY: It is impossible for the value to be smaller than `isize::MIN`.
-            ..NEG_START => unsafe { unreachable_unchecked!("`repr < isize::MIN`") },
-
-            // NOTE: We're in the range of valid negative `isize`s.
-            repr @ NEG_START..0 => Err(NonZero::new(repr as isize).unwrap()),
-
-            // SAFETY: `repr` is non-zero.
-            0 => unsafe { unreachable_unchecked!("`repr == 0`") },
-
-            // NOTE: We're in the range of valid positive `usize`s.
-            repr @ 1..POS_END => Ok(NonZero::new(repr as usize).unwrap()),
-
-            // SAFETY: It is impossible for the value to be larger than `usize::MAX`.
-            POS_END.. => unsafe { unreachable_unchecked!("`repr > usize::MAX`") },
-        }
-    }
-
-    /// Attempt to get the stored value as a negative number.
-    ///
-    /// # Returns
-    ///
-    /// Returns `Err(positive)` is `x` is not negative.
-    #[inline(always)]
-    #[track_caller]
-    pub const fn as_negative(self) -> Result<NonZero<isize>, NonZero<usize>> {
-        match self.as_positive() {
-            Ok(positive) => Err(positive),
-            Err(negative) => Ok(negative),
-        }
-    }
-
-    /// Attempt to get the stored value as a [`prim@usize`].
-    ///
-    /// # Returns
-    ///
-    /// Returns `Err(signed)` if `x` is too small to be represented
-    /// as a [`prim@usize`].
-    ///
-    /// # Note
-    ///
-    /// While the implementation of this is the same as [`OobIndex::as_positive`],
-    /// it semantically exists to be the unsigned variant of [`OobIndex::as_signed`].
-    #[inline(always)]
-    #[track_caller]
-    pub const fn as_unsigned(self) -> Result<NonZero<usize>, NonZero<isize>> {
-        self.as_positive()
-    }
-
-    /// Attempt to get the stored value as a [`prim@isize`].
-    ///
-    /// # Returns
-    ///
-    /// Returns `Err(unsigned)` if `x` is too large to be represented
-    /// as an [`prim@isize`].
-    ///
-    /// # Note
-    ///
-    /// This is *not* the same as [`OobIndex::as_negative`], as this
-    /// function may also return a positive [`prim@isize`].
-    #[inline(always)]
-    #[track_caller]
-    pub const fn as_signed(self) -> Result<NonZero<isize>, NonZero<usize>> {
-        // The start of the valid negative range.
-        const NEG_START: _OobIndex = OobIndex::MIN.repr.get();
-        // The end of the valid positive range.
-        const UNSIGNED_START: _OobIndex = (isize::MAX as _OobIndex) + 1;
-        // The end of the valid unsigned positive range.
-        const UNSIGNED_END: _OobIndex = OobIndex::MAX.repr.get();
-
-        match self.repr.get() {
-            // SAFETY: It is impossible for the value to be smaller than `isize::MIN`.
-            ..NEG_START => unsafe { unreachable_unchecked!("`repr < isize::MIN`") },
-
-            // NOTE: We're in the range of valid negative `isize`s.
-            repr @ NEG_START..0 => Ok(NonZero::new(repr as isize).unwrap()),
-
-            // SAFETY: `repr` is non-zero.
-            0 => unsafe { unreachable_unchecked!("`repr == 0`") },
-
-            // NOTE: We're in the range of valid positive `isize`s.
-            repr @ 1..UNSIGNED_START => Ok(NonZero::new(repr as isize).unwrap()),
-
-            // NOTE: We're in the range of valid positive `usize`s.
-            repr @ UNSIGNED_START..UNSIGNED_END => Err(NonZero::new(repr as usize).unwrap()),
-
-            // SAFETY: It is impossible for the value to be larger than `usize::MAX`.
-            UNSIGNED_END.. => unsafe { unreachable_unchecked!("`repr > usize::MAX`") },
-        }
-    }
-
-    /// Returns whether this index is positive.
-    #[inline(always)]
-    #[must_use]
-    #[track_caller]
-    pub const fn is_positive(self) -> bool {
-        // NOTE: This provides better codegen than `self.repr.is_positive()`.
-        self.as_positive().is_ok()
-    }
-
-    /// Returns whether this index is negative.
-    #[inline(always)]
-    #[must_use]
-    #[track_caller]
-    pub const fn is_negative(self) -> bool {
-        // NOTE: This provides better codegen than `self.repr.is_negative()`.
-        self.as_negative().is_ok()
-    }
-}
-
-impl fmt::Debug for OobIndex {
-    #[inline]
-    fn fmt(
-        &self,
-        f: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
-        self.repr.fmt(f)
-    }
-}
-
-impl fmt::Display for OobIndex {
-    #[inline]
-    fn fmt(
-        &self,
-        f: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
-        self.repr.fmt(f)
-    }
-}
-
-impl fmt::Binary for OobIndex {
-    #[inline]
-    fn fmt(
-        &self,
-        f: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
-        self.repr.fmt(f)
-    }
-}
-
-impl fmt::LowerHex for OobIndex {
-    #[inline]
-    fn fmt(
-        &self,
-        f: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
-        self.repr.fmt(f)
-    }
-}
-
-impl fmt::UpperHex for OobIndex {
-    #[inline]
-    fn fmt(
-        &self,
-        f: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
-        self.repr.fmt(f)
-    }
-}
-
-impl fmt::LowerExp for OobIndex {
-    #[inline]
-    fn fmt(
-        &self,
-        f: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
-        self.repr.fmt(f)
-    }
-}
-
-impl fmt::UpperExp for OobIndex {
-    #[inline]
-    fn fmt(
-        &self,
-        f: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
-        self.repr.fmt(f)
-    }
-}
+/// A type alias of the type used for out-of-bounds error indices.
+///
+/// This is platform dependent.
+pub type OobIndex = _OobIndex;
 
 /// An error detailing why it is not possible to split some slice.
 pub enum SplitError<S>
@@ -666,7 +385,7 @@ where
     /// The index is out of bounds of the length.
     OutOfBounds {
         /// The index that is out of bounds.
-        index: OobIndex,
+        index: NonZero<OobIndex>,
         /// The length of the slice.
         len: usize,
     },
@@ -684,11 +403,13 @@ where
     #[must_use]
     pub const fn index(&self) -> Option<usize> {
         match self {
-            SplitError::OutOfBounds { index, .. } => match index.as_positive() {
-                Ok(index) => Some(index.get()),
-                Err(..) => None,
-            },
+            SplitError::OutOfBounds { index, .. }
+                if index.get() > 0 && index.get() <= (usize::MAX as OobIndex) =>
+            {
+                Some(index.get() as usize)
+            }
             SplitError::Other(error) => Some(S::KIND.0.split_error_index(error)),
+            _ => None,
         }
     }
 
@@ -699,10 +420,10 @@ where
     pub const fn panic(self) -> ! {
         match self {
             // SplitError::OutOfBounds { .. } => panic!("index is out of bounds: `index >= len`"),i
-            SplitError::OutOfBounds { index, .. } => match index.as_positive() {
-                Ok(..) => panic!("index is out of bounds: `index >= len`"),
-                Err(..) => panic!("index is out of bounds: `index < 0`"),
-            },
+            SplitError::OutOfBounds { index, .. } if index.is_positive() => {
+                panic!("index is out of bounds: `index >= len`")
+            }
+            SplitError::OutOfBounds { .. } => panic!("index is out of bounds: `index < 0`"),
             SplitError::Other(error) => S::KIND.0.handle_split_error(error),
         }
     }
@@ -724,11 +445,11 @@ where
     pub const unsafe fn panic_unchecked(self) -> ! {
         // SAFETY: The caller ensures it is imppossible to reach this code.
         match self {
-            SplitError::OutOfBounds { index, .. } => match index.as_positive() {
-                Ok(..) => unsafe {
-                    unreachable_unchecked!("index is out of bounds: `index >= len`")
-                },
-                Err(..) => unsafe { unreachable_unchecked!("index is out of bounds: `index < 0`") },
+            SplitError::OutOfBounds { index, .. } if index.is_positive() => unsafe {
+                unreachable_unchecked!("index is out of bounds: `index >= len`")
+            },
+            SplitError::OutOfBounds { .. } => unsafe {
+                unreachable_unchecked!("index is out of bounds: `index < 0`")
             },
             SplitError::Other(error) => unsafe { S::KIND.0.handle_split_error_unchecked(error) },
         }
@@ -784,10 +505,12 @@ where
         f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         match self {
-            SplitError::OutOfBounds { index, len } => match index.as_positive() {
-                Ok(index) => core::write!(f, "index is out of bounds: `{index} >= {len}`"),
-                Err(index) => core::write!(f, "index is out of bounds: `{index} < 0`"),
-            },
+            SplitError::OutOfBounds { index, len } if index.is_positive() => {
+                core::write!(f, "index is out of bounds: `{index} >= {len}`")
+            }
+            SplitError::OutOfBounds { index, .. } => {
+                core::write!(f, "index is out of bounds: `{index} < 0`")
+            }
             SplitError::Other(other) => other.fmt(f),
         }
     }
@@ -932,10 +655,10 @@ where
     #[inline]
     fn description(&self) -> &str {
         match self {
-            SplitError::OutOfBounds { index, .. } => match index.as_positive() {
-                Ok(..) => "index is out of bounds: `index >= len`",
-                Err(..) => "index is out of bounds: `index < 0`",
-            },
+            SplitError::OutOfBounds { index, .. } if index.is_positive() => {
+                "index is out of bounds: `index >= len`"
+            }
+            SplitError::OutOfBounds { .. } => "index is out of bounds: `index < 0`",
             SplitError::Other(error) => error.description(),
         }
     }

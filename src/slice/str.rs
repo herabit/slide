@@ -1,6 +1,7 @@
 use core::{
     cmp::Ordering,
     fmt, mem,
+    num::NonZero,
     ptr::{self, NonNull},
     slice,
     str::Utf8Error,
@@ -347,7 +348,7 @@ methods! {
                 Ordering::Equal => Ok(()),
                 // NOTE: If `index > slice.len()`, then it is out of bounds.
                 Ordering::Greater => Err(SplitError::OutOfBounds {
-                    index: OobIndex::from_positive(index).unwrap(),
+                    index: NonZero::new(index as OobIndex).unwrap(),
                     len: slice.len(),
                 }),
                 // NOTE: If `index < slice.len()` and the byte at `index` is a valid UTF-8 character boundary,
