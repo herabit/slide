@@ -362,15 +362,15 @@ where
 
 #[cfg(target_pointer_width = "16")]
 #[allow(clippy::missing_docs_in_private_items)]
-pub(crate) type _OobIndex = i32;
+type _OobIndex = i32;
 
 #[cfg(target_pointer_width = "32")]
 #[allow(clippy::missing_docs_in_private_items)]
-pub(crate) type _OobIndex = i64;
+type _OobIndex = i64;
 
 #[cfg(target_pointer_width = "64")]
 #[allow(clippy::missing_docs_in_private_items)]
-pub(crate) type _OobIndex = i128;
+type _OobIndex = i128;
 
 /// A type for out-of-bounds errors.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
