@@ -86,7 +86,7 @@ methods! {
     ///
     /// For more detailed documentation, refer to the documentation for [`Slice::len`]
     /// as implemented for `S`/`Self`.
-    #[inline]
+    #[inline(always)]
     #[must_use]
     #[track_caller]
     pub const fn len[S](
@@ -102,7 +102,7 @@ methods! {
     ///
     /// For more detailed documentation, refer to the documentation for [`Slice::is_empty`]
     /// as implemented for `S`/`Self`.
-    #[inline]
+    #[inline(always)]
     #[must_use]
     #[track_caller]
     pub const fn is_empty[S](
@@ -125,7 +125,7 @@ methods! {
     /// about a raw slice.
     ///
     /// Proceed with caution.
-    #[inline]
+    #[inline(always)]
     #[must_use]
     #[track_caller]
     pub const fn raw_slice[S](
@@ -149,7 +149,7 @@ methods! {
     /// about a raw slice.
     ///
     /// Proceed with caution.
-    #[inline]
+    #[inline(always)]
     #[must_use]
     #[track_caller]
     pub const fn raw_slice_mut[S](
@@ -173,7 +173,7 @@ methods! {
     /// about a raw slice.
     ///
     /// Proceed with caution.
-    #[inline]
+    #[inline(always)]
     #[must_use]
     #[track_caller]
     pub const fn raw_slice_nonnull[S](
@@ -198,7 +198,7 @@ methods! {
     /// - That the invariants of [`core::slice::from_raw_parts`] are upheld.
     ///
     /// - That the invariants of [`Slice::from_elems_unchecked`] for `S`/`Self` are upheld.
-    #[inline]
+    #[inline(always)]
     #[must_use]
     #[track_caller]
     pub const unsafe fn from_raw_parts['a, S](
@@ -224,7 +224,7 @@ methods! {
     /// - That the invariants of [`core::slice::from_raw_parts_mut`] are upheld.
     ///
     /// - That the invariants of [`Slice::from_elems_mut_unchecked`] for `S`/`Self` are upheld.
-    #[inline]
+    #[inline(always)]
     #[must_use]
     #[track_caller]
     pub const unsafe fn from_raw_parts_mut['a, S](
@@ -248,7 +248,7 @@ methods! {
     /// - Returns [`Ok`] upon success.
     ///
     /// - Returns [`Err`] upon failure.
-    #[inline]
+    #[inline(always)]
     #[track_caller]
     pub const fn try_from_elems['a, S](
         elems: &'a [S::Elem],
@@ -269,7 +269,7 @@ methods! {
     /// - Returns [`Ok`] upon success.
     ///
     /// - Returns [`Err`] upon failure.
-    #[inline]
+    #[inline(always)]
     #[track_caller]
     pub const fn try_from_elems_mut['a, S](
         elems: &'a mut [S::Elem],
@@ -288,7 +288,7 @@ methods! {
     /// # Panics
     ///
     /// Panics if [`Slice::try_from_elems`] fails.
-    #[inline]
+    #[inline(always)]
     #[must_use]
     #[track_caller]
     pub const fn from_elems['a, S](
@@ -308,7 +308,7 @@ methods! {
     /// # Panics
     ///
     /// Panics if [`Slice::try_from_elems_mut`] fails.
-    #[inline]
+    #[inline(always)]
     #[must_use]
     #[track_caller]
     pub const fn from_elems_mut['a, S](
@@ -329,7 +329,7 @@ methods! {
     ///
     /// It is up to the caller to ensure that the invariants of [`Slice::from_elems_unchecked`]
     /// as implemented for `S`/`Self` are upheld. Failure to do so is *undefined behavior*.
-    #[inline]
+    #[inline(always)]
     #[must_use]
     #[track_caller]
     pub const unsafe fn from_elems_unchecked['a, S](
@@ -351,7 +351,7 @@ methods! {
     ///
     /// It is up to the caller to ensure that the invariants of [`Slice::from_elems_mut_unchecked`]
     /// as implemented for `S`/`Self` are upheld. Failure to do so is *undefined behavior*.
-    #[inline]
+    #[inline(always)]
     #[must_use]
     #[track_caller]
     pub const unsafe fn from_elems_mut_unchecked['a, S](
@@ -374,7 +374,7 @@ methods! {
     /// - Returns [`Ok`] upon success.
     ///
     /// - Returns [`Err`] upon failure.
-    #[inline]
+    #[inline(always)]
     #[track_caller]
     pub const fn try_as_elems['a, S](
         slice: &'a S,
@@ -393,7 +393,7 @@ methods! {
     /// # Panics
     ///
     /// Panics if [`Slice::try_as_elems`] fails.
-    #[inline]
+    #[inline(always)]
     #[must_use]
     #[track_caller]
     pub const fn as_elems['a, S](
@@ -414,7 +414,7 @@ methods! {
     ///
     /// It is up to the caller to ensure that the invariants of [`Slice::as_elems_unchecked`]
     /// as implemented for `S`/`Self` are upheld. Failure to do so is *undefined behavior*.
-    #[inline]
+    #[inline(always)]
     #[must_use]
     #[track_caller]
     pub const unsafe fn as_elems_unchecked['a, S](
@@ -437,7 +437,7 @@ methods! {
     /// - Returns [`Ok`] upon success.
     ///
     /// - Returns [`Err`] upon failure.
-    #[inline]
+    #[inline(always)]
     #[track_caller]
     pub const fn try_as_elems_mut['a, S](
         slice: &'a mut S,
@@ -456,7 +456,7 @@ methods! {
     /// # Panics
     ///
     /// Panics if [`Slice::try_as_elems_mut`] fails.
-    #[inline]
+    #[inline(always)]
     #[must_use]
     #[track_caller]
     pub const fn as_elems_mut['a, S](
@@ -477,7 +477,7 @@ methods! {
     ///
     /// It is up to the caller to ensure that the invariants of [`Slice::as_elems_mut_unchecked`]
     /// as implemented for `S`/`Self` are upheld. Failure to do so is *undefined behavior*.
-    #[inline]
+    #[inline(always)]
     #[must_use]
     #[track_caller]
     pub const unsafe fn as_elems_mut_unchecked['a, S](
@@ -509,7 +509,7 @@ methods! {
     ///
     /// The results of this function can be relied on for determining whether it is
     /// sound to split at `index` unsafely.
-    #[inline]
+    #[inline(always)]
     #[track_caller]
     pub const fn validate_split_at['a, S](
         slice: &'a S,
@@ -534,7 +534,7 @@ methods! {
     /// # Returns
     ///
     /// Returns a tuple of `(head, tail)`.
-    #[inline]
+    #[inline(always)]
     #[must_use]
     #[track_caller]
     pub const unsafe fn split_at_unchecked['a, S](
@@ -561,7 +561,7 @@ methods! {
     /// # Returns
     ///
     /// Returns a tuple of `(head, tail)`.
-    #[inline]
+    #[inline(always)]
     #[must_use]
     #[track_caller]
     pub const unsafe fn split_at_mut_unchecked['a, S](
@@ -589,7 +589,7 @@ methods! {
     /// - `Err(SplitError::Other(..))` upon some other error defined by `S`/`Self`. See the
     ///    documentation for [`Slice::validate_split_at`] as implemented for `S`/`Self` for more
     ///    info.
-    #[inline]
+    #[inline(always)]
     #[track_caller]
     pub const fn try_split_at['a, S](
         slice: &'a S,
@@ -615,7 +615,7 @@ methods! {
     /// - `Err(SplitError::Other(..))` upone some other error defined by `S`/`Self`. See the
     ///    documentation for [`Slice::validate_split_at`] as implemented for `S`/`Self` for more
     ///    info.
-    #[inline]
+    #[inline(always)]
     #[track_caller]
     pub const fn try_split_at_mut['a, S](
         slice: &'a mut S,
@@ -639,7 +639,7 @@ methods! {
     /// - If some other error defined by `S`/`Self` occurs. See the documentation
     ///   for [`Slice::validate_split_at`] as implemented for `S`/`Self` for more
     ///   info on what other errors can occur.
-    #[inline]
+    #[inline(always)]
     #[must_use]
     #[track_caller]
     pub const fn split_at['a, S](
@@ -665,7 +665,7 @@ methods! {
     /// - If some other error defined by `S`/`Self` occurs. See the documentation
     ///   for [`Slice::validate_split_at`] as implemented for `S`/`Self` for more
     ///   info on what other errors can occur.
-    #[inline]
+    #[inline(always)]
     #[must_use]
     #[track_caller]
     pub const fn split_at_mut['a, S](

@@ -416,9 +416,16 @@ impl<S> RawSlide<S>
 where
     S: Slice + ?Sized,
 {
-    /// Determine whether we're able to advance the slide by `amount` elems.
+    /// Determine whether we're able to advance the slide by `amount` elements.
     ///
-    /// ***TODO***
+    /// # Returns
+    ///
+    ///  Returns `Err(error)` if it is not valid to rewind by `amount` elements.
+    ///
+    /// # Safety
+    ///
+    /// The caller needs to ensure that it is safe to create a temporary reference to the
+    /// underlying buffer for validation.
     #[inline(always)]
     #[track_caller]
     pub(crate) const unsafe fn validate_advance(
@@ -430,9 +437,16 @@ where
         validate_split_at(unsafe { self.remaining_ref() }, amount)
     }
 
-    /// Determine whether we're able to rewind the slide by `amount` elems.
+    /// Determine whether we're able to rewind the slide by `amount` elements.
     ///
-    /// ***TODO***
+    /// # Returns
+    ///
+    /// Returns `Err(error)` if it is not valid to rewind by `amount` elements.
+    ///
+    /// # Safety
+    ///
+    /// The caller needs to ensure that it is safe to create a temporary reference to the
+    /// underlying buffer for validation.
     #[inline(always)]
     #[track_caller]
     pub(crate) const unsafe fn validate_rewind(
@@ -449,6 +463,74 @@ where
                 index: NonZero::new(len(consumed) as OobIndex - amount as OobIndex).unwrap(),
                 len: len(consumed),
             }),
+        }
+    }
+
+    /// Attempt to advance the slide by `amount` elements.
+    ///
+    /// # Returns
+    ///
+    /// - Returns `Ok(advanced)`, where `advanced` is the subslice we just advanced over, upon success.
+    /// - Returns `Err(error)` if it is not valid to advance by `amount` elements.
+    ///
+    /// # Safety
+    ///
+    /// The caller needs to ensure that it is safe to create a temporary reference to the
+    /// underlying buffer for validation.
+    #[inline(always)]
+    #[track_caller]
+    pub(crate) const unsafe fn try_advance(
+        &mut self,
+        amount: usize,
+    ) -> Result<NonNull<S>, SplitError<S>> {
+        // SAFETY: The caller ensures that it is safe to create a temporary reference for validation.
+        let result = unsafe { self.validate_advance(amount) };
+
+        match NoDrop::new(result).transpose() {
+            Ok(..) => {
+                // SAFETY: We know it is valid to advance.
+                let loc = unsafe { self.cursor.advance(amount) };
+                // SAFETY: Since it is valid to advance, it is always valid to create a pointer given the start
+                //         pointer and current location.
+                let ptr = unsafe { loc.apply(self.start) };
+
+                Ok(raw_slice_nonnull(ptr, amount))
+            }
+            Err(error) => Err(error.into_inner()),
+        }
+    }
+
+    /// Attempt to rewind the slide by `amount` elements.
+    ///
+    /// # Returns
+    ///
+    /// - Returns `Ok(rewound)`, where `rewound` is the subslice we just rewound over, upon success.
+    /// - Returns `Err(error)` if it is not valid to rewind by `amount` elements.
+    ///
+    /// # Safety
+    ///
+    /// The caller needs to ensure that it is safe to create a temporary reference to the
+    /// underlying buffer validation.
+    #[inline(always)]
+    #[track_caller]
+    pub(crate) const unsafe fn try_rewind(
+        &mut self,
+        amount: usize,
+    ) -> Result<NonNull<S>, SplitError<S>> {
+        // SAFETY: The caller ensures that it is safe to create a temporary reference for validation.
+        let result = unsafe { self.validate_rewind(amount) };
+
+        match NoDrop::new(result).transpose() {
+            Ok(..) => {
+                // SAFETY: We know it is valid to rewind.
+                let loc = unsafe { self.cursor.rewind(amount) };
+                // SAFETY: Since it is valid to rewind, it is always valid to create a pointer given the start
+                //         pointer and current location.
+                let ptr = unsafe { loc.apply(self.start) };
+
+                Ok(raw_slice_nonnull(ptr, amount))
+            }
+            Err(error) => Err(error.into_inner()),
         }
     }
 }

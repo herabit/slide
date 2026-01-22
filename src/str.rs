@@ -1,4 +1,4 @@
-use core::ops::Range;
+use core::{num::NonZero, ops::Range};
 
 use crate::macros::{assert_unchecked, unreachable_unchecked};
 
@@ -8,7 +8,7 @@ use crate::macros::{assert_unchecked, unreachable_unchecked};
 ///
 /// For sources that aren't UTF-8, this may return false positives,
 /// but will never return false negatives.
-#[inline]
+#[inline(always)]
 #[must_use]
 pub const fn is_utf8_char_boundary(byte: u8) -> bool {
     // Is it ascii (`0x00..=0x7F`) or are the leading two bits set to one (`0xC0..=0xFF`).
@@ -18,7 +18,7 @@ pub const fn is_utf8_char_boundary(byte: u8) -> bool {
 /// Why? Why not? Mainly just to flex my stupidity when, in reality, it does not matter like, at all.
 ///
 /// See [`str::floor_char_boundary`] for details.
-#[cfg_attr(not(debug_assertions), inline)]
+#[cfg_attr(not(debug_assertions), inline(always))]
 #[must_use]
 pub const fn floor_char_boundary(
     s: &str,

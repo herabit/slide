@@ -89,12 +89,19 @@ where
     ///
     /// The caller *must* ensure that it is safe to increment this location
     /// by `amount`. Failure to do so is *undefined behavior*.
+    ///
+    /// # Returns
+    ///
+    /// Returns the old location.
     #[inline(always)]
+    #[must_use]
     #[track_caller]
     pub(crate) const unsafe fn advance(
         &mut self,
         amount: usize,
-    ) {
+    ) -> Location<S> {
+        let old = *self;
+
         if Self::IS_ZST {
             // SAFETY: The caller ensures this is fine.
             unsafe { self.offset = self.offset.unchecked_add(amount) }
@@ -102,6 +109,8 @@ where
             // SAFETY: The caller ensures this is fine.
             unsafe { self.offset_ptr = self.offset_ptr.add(amount) }
         }
+
+        old
     }
 
     /// Rewind the location without checks.
@@ -110,12 +119,16 @@ where
     ///
     /// The caller *must* ensure that it is safe to decrement this location
     /// by `amount`. Failure to do so is *undefined behavior*.
+    ///
+    /// # Returns
+    ///
+    /// Returns the new location.
     #[inline(always)]
     #[track_caller]
     pub(crate) const unsafe fn rewind(
         &mut self,
         amount: usize,
-    ) {
+    ) -> Location<S> {
         if Self::IS_ZST {
             // SAFETY: The caller ensures this is sound.
             unsafe { self.offset = self.offset.unchecked_sub(amount) }
@@ -123,6 +136,8 @@ where
             // SAFETY: The caller ensures this is sound.
             unsafe { self.offset_ptr = self.offset_ptr.sub(amount) }
         }
+
+        *self
     }
 
     /// Apply this location to a given pointer.
