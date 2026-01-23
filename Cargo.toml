@@ -13,3 +13,6 @@ alloc = []
 
 # Enabling this feature tells the crate to optimize for file size.
 opt_size = []
+
+# Enabling this forces slides to be index-based.
+force_index = []

@@ -32,7 +32,7 @@ pub const fn floor_char_boundary(
         //
         //       We use the range `index.saturating_sub(3)..index + 1` in the code, but they're equivalent. The
         //       inclusive range just better descrives what we're doing.
-        let range = index.saturating_sub(3)..index.checked_add(1).unwrap();
+        let range = index.saturating_sub(3)..index.strict_add(1);
         let Range { start, mut end } = {
             // SAFETY: We know that `index.saturating_sub(3) <= index`, and that `index < s.len()`.
             let start = unsafe { s.as_ptr().add(range.start) };

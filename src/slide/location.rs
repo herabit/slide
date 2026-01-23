@@ -8,10 +8,10 @@ pub(crate) union Location<S>
 where
     S: Slice + ?Sized,
 {
-    /// Variant for when we're working with pointers.
-    offset_ptr: NonNull<S::Elem>,
-    /// Variant for when we're working with offsets.
-    offset: usize,
+    /// Variant for when we're working with pointer locations.
+    ptr: NonNull<S::Elem>,
+    /// Variant for when we're working with index locations.
+    index: usize,
 }
 
 impl<S> Location<S>
@@ -25,7 +25,10 @@ where
     /// - `S::Elem` is a zero sized type.
     ///
     /// - We're compiling with debug assertions. We do this to try to catch UB.
-    pub(crate) const INDEX_BASED: bool = size_of::<S::Elem>() == 0 || cfg!(debug_assertions);
+    ///
+    /// - We're forced to.
+    pub(crate) const INDEX_BASED: bool =
+        size_of::<S::Elem>() == 0 || cfg!(debug_assertions) || cfg!(feature = "force_index");
 
     /// Create a new [`Location`].
     ///
@@ -40,11 +43,11 @@ where
         offset: usize,
     ) -> Self {
         if Self::INDEX_BASED {
-            Self { offset }
+            Self { index: offset }
         } else {
             Self {
                 // SAFETY: The caller ensures this is fine.
-                offset_ptr: unsafe { start.add(offset) },
+                ptr: unsafe { start.add(offset) },
             }
         }
     }
@@ -71,10 +74,10 @@ where
         let origin = match O::KIND {
             // NOTE: Since we were given a pointer and we're dealing with ZSTs, we only want to return
             //       the offset of self, and `self - 0 == self`.
-            OriginKind::Pointer(..) if Self::INDEX_BASED => Location { offset: 0 },
+            OriginKind::Pointer(..) if Self::INDEX_BASED => Location { index: 0 },
             // NOTE: We were provided a pointer and we're not dealing with ZSTs, so turn it into a location.
             OriginKind::Pointer(ptr) => Location {
-                offset_ptr: ptr.coerce(origin),
+                ptr: ptr.coerce(origin),
             },
             // NOTE: We're already dealing with a location.
             OriginKind::Location(loc) => loc.coerce(origin),
@@ -82,10 +85,10 @@ where
 
         if Self::INDEX_BASED {
             // SAFETY: The caller ensures this is fine.
-            unsafe { self.offset.unchecked_sub(origin.offset) }
+            unsafe { self.index.unchecked_sub(origin.index) }
         } else {
             // SAFETY: The caller ensures this is fine.
-            unsafe { self.offset_ptr.offset_from_unsigned(origin.offset_ptr) }
+            unsafe { self.ptr.offset_from_unsigned(origin.ptr) }
         }
     }
 
@@ -98,28 +101,83 @@ where
     ///
     /// # Returns
     ///
-    /// Returns the old location.
+    /// Returns the advanced location.
     #[inline(always)]
     #[must_use]
     #[track_caller]
     pub(crate) const unsafe fn advance(
+        self,
+        amount: usize,
+    ) -> Location<S> {
+        if Self::INDEX_BASED {
+            Location {
+                // SAFETY: The caller ensures this is fine.
+                index: unsafe { self.index.unchecked_add(amount) },
+            }
+        } else {
+            Location {
+                // SAFETY: The caller ensures this is fine.
+                ptr: unsafe { self.ptr.add(amount) },
+            }
+        }
+    }
+
+    /// Advance the location without checks, in-place.
+    ///
+    /// # Safety
+    ///
+    /// The caller *must* ensure that it is safe to increment this location
+    /// by `amount`. Failure to do so is *undefined behavior*.
+    ///
+    /// # Returns
+    ///
+    /// Returns the old location.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub(crate) const unsafe fn advance_assign(
         &mut self,
         amount: usize,
     ) -> Location<S> {
         let old = *self;
 
-        if Self::INDEX_BASED {
-            // SAFETY: The caller ensures this is fine.
-            unsafe { self.offset = self.offset.unchecked_add(amount) }
-        } else {
-            // SAFETY: The caller ensures this is fine.
-            unsafe { self.offset_ptr = self.offset_ptr.add(amount) }
-        }
+        // SAFETY: The caller ensures this is fine.
+        *self = unsafe { self.advance(amount) };
 
         old
     }
 
     /// Rewind the location without checks.
+    ///
+    /// # Safety
+    ///
+    /// The caller *must* ensure that it is safe to increment this location
+    /// by `amount`. Failure to do so is *undefined behavior*.
+    ///
+    /// # Returns
+    ///
+    /// Returns the rewound location.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub(crate) const unsafe fn rewind(
+        self,
+        amount: usize,
+    ) -> Location<S> {
+        if Self::INDEX_BASED {
+            Location {
+                // SAFETY: The caller ensures this is sound.
+                index: unsafe { self.index.unchecked_sub(amount) },
+            }
+        } else {
+            Location {
+                // SAFETY: The caller ensures this is sound.
+                ptr: unsafe { self.ptr.sub(amount) },
+            }
+        }
+    }
+
+    /// Rewind the location without checks, in-place.
     ///
     /// # Safety
     ///
@@ -131,17 +189,12 @@ where
     /// Returns the new location.
     #[inline(always)]
     #[track_caller]
-    pub(crate) const unsafe fn rewind(
+    pub(crate) const unsafe fn rewind_assign(
         &mut self,
         amount: usize,
     ) -> Location<S> {
-        if Self::INDEX_BASED {
-            // SAFETY: The caller ensures this is sound.
-            unsafe { self.offset = self.offset.unchecked_sub(amount) }
-        } else {
-            // SAFETY: The caller ensures this is sound.
-            unsafe { self.offset_ptr = self.offset_ptr.sub(amount) }
-        }
+        // SAFETY: The caller ensures this is sound.
+        *self = unsafe { self.rewind(amount) };
 
         *self
     }

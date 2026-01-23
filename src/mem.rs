@@ -110,6 +110,7 @@ where
     ///
     /// See [`ManuallyDrop::drop`] for more details.
     #[inline(always)]
+    #[track_caller]
     pub(crate) unsafe fn drop(&mut self) {
         unsafe { ptr::drop_in_place(self.as_mut()) }
     }

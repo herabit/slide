@@ -417,7 +417,7 @@ methods! {
             // SAFETY: We just checked that it is safe to split above.
             Ok(()) => unsafe { split_at_unchecked(slice, index) },
             // SAFETY: We know that it is invalid to split at `index`.
-            Err(..) => unsafe { split_error_handler(slice, index) },
+            Err(..) => unsafe { split_error_handler(slice, NonZero::new(index as OobIndex).unwrap()) },
         }
     }
 
@@ -442,7 +442,7 @@ methods! {
             // SAFETY: We just checked that it is safe to split above.
             Ok(()) => unsafe { split_at_mut_unchecked(slice, index) },
             // SAFETY: We know that it is invalid to split at `index`.
-            Err(..) => unsafe { split_error_handler(slice, index) },
+            Err(..) => unsafe { split_error_handler(slice, NonZero::new(index as OobIndex).unwrap()) },
         }
     }
 

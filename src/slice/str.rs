@@ -346,14 +346,17 @@ methods! {
             match cmp_usize(index, slice.len()) {
                 // NOTE: It is always sound to get `&slice[..slice.len()]` and `&slice[slice.len()..]`.
                 Ordering::Equal => Ok(()),
+
                 // NOTE: If `index > slice.len()`, then it is out of bounds.
                 Ordering::Greater => Err(SplitError::OutOfBounds {
                     index: NonZero::new(index as OobIndex).unwrap(),
                     len: slice.len(),
                 }),
+
                 // NOTE: If `index < slice.len()` and the byte at `index` is a valid UTF-8 character boundary,
                 //       then it is always sound to get `&slice[..index]` and `&slice[index..]`.
                 Ordering::Less if is_utf8_char_boundary(slice.as_bytes()[index]) => Ok(()),
+
                 // NOTE: If `index < slice.len()` and the byte at `index` is not a valid UTF-8 character boundary,
                 //       then it is *not* sound to get `&slice[..index]` and `&slice[index..]`.
                 Ordering::Less => Err(SplitError::Other(StrSplitError::InvalidCharBoundary {
@@ -502,7 +505,7 @@ methods! {
             // SAFETY: We just checked that it is safe to split above.
             Ok(()) => unsafe { split_at_unchecked(slice, index) },
             // SAFETY: We know that it is invalid to split at `index`.
-            Err(..) => unsafe { split_error_handler(slice, index) },
+            Err(..) => unsafe { split_error_handler(slice, NonZero::new(index as OobIndex).unwrap()) },
         }
     }
 
@@ -528,7 +531,7 @@ methods! {
             // SAFETY: We just checked that it is safe to split above.
             Ok(()) => unsafe { split_at_mut_unchecked(slice, index) },
             // SAFETY: We know that it is invalid to split at `index`.
-            Err(..) => unsafe { split_error_handler(slice, index) },
+            Err(..) => unsafe { split_error_handler(slice, NonZero::new(index as OobIndex).unwrap()) },
         }
     }
 

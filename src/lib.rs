@@ -6,7 +6,6 @@
     clippy::wrong_self_convention,
     rustdoc::redundant_explicit_links
 )]
-#![warn(clippy::missing_docs_in_private_items)]
 
 #[cfg(feature = "alloc")]
 extern crate alloc;

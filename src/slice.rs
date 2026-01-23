@@ -3,7 +3,7 @@
 use crate::{
     macros::unreachable_unchecked, marker::TypeEq, mem::NoDrop, slice::private::SliceKind,
 };
-use core::{convert::Infallible, fmt, ptr::NonNull, str::Utf8Error};
+use core::{convert::Infallible, fmt, num::NonZero, ptr::NonNull, str::Utf8Error};
 
 /// Internal implementation details.
 pub(crate) mod private;
@@ -2164,19 +2164,38 @@ slice! {
 ///
 /// The caller *must* ensure that it is invalid to split at `index`. Failure to do so is
 /// *undefined behavior*.
+///
+/// - If `index` is positive, then it must be a valid [`prim@usize`].
+///
+/// - If `index` is negative, then it must be a valid [`prim@isize`].
 #[inline(never)]
 #[track_caller]
 #[cold]
 pub(crate) const unsafe fn split_error_handler<'a, S>(
     slice: &'a S,
-    index: usize,
+    index: NonZero<OobIndex>,
 ) -> !
 where
     S: Slice + ?Sized,
 {
-    match NoDrop::new(validate_split_at(slice, index)).transpose() {
+    let result = if index.is_positive() {
+        validate_split_at(slice, index.get() as usize)
+    } else {
+        Err(SplitError::OutOfBounds {
+            index,
+            len: len(slice),
+        })
+    };
+
+    match NoDrop::new(result).transpose() {
         Err(error) => error.into_inner().panic(),
-        // SAFETY: The caller ensures it is not valid to split at `index`.
+        // SAFETY: The caller ensures it is not valid to split at `index`
         Ok(..) => unsafe { unreachable_unchecked!("it is valid to split `slice` at `index`") },
     }
+
+    // match NoDrop::new(validate_split_at(slice, index)).transpose() {
+    //     Err(error) => error.into_inner().panic(),
+    //     // SAFETY: The caller ensures it is not valid to split at `index`.
+    //     Ok(..) => unsafe { unreachable_unchecked!("it is valid to split `slice` at `index`") },
+    // }
 }
