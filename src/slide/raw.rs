@@ -534,17 +534,3 @@ where
 }
 
 impl<S> Copy for RawSlide<S> where S: Slice + ?Sized {}
-
-#[unsafe(no_mangle)]
-unsafe fn peek(
-    s: &[RawSlide<[u8]>; 16],
-    amount: usize,
-) -> [bool; 16] {
-    let mut output = [false; 16];
-
-    for (i, s) in s.iter().enumerate() {
-        output[i] = s.try_peek_behind(amount).is_ok();
-    }
-
-    output
-}
