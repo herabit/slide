@@ -8,9 +8,9 @@ pub(crate) union Location<S>
 where
     S: Slice + ?Sized,
 {
-    /// For when `S::Elem` is not a ZST, we work with a pointer offset from the start.
+    /// Variant for when we're working with pointers.
     offset_ptr: NonNull<S::Elem>,
-    /// For when `S::Elem` is a ZST, we work with offsets.
+    /// Variant for when we're working with offsets.
     offset: usize,
 }
 
@@ -18,8 +18,14 @@ impl<S> Location<S>
 where
     S: Slice + ?Sized,
 {
-    /// An associated constant indicating whether we're working with ZSTs or not.
-    pub(crate) const IS_ZST: bool = size_of::<S::Elem>() == 0;
+    /// An associated constant used for determining whether we should use indices.
+    ///
+    /// We use indices if:
+    ///
+    /// - `S::Elem` is a zero sized type.
+    ///
+    /// - We're compiling with debug assertions. We do this to try to catch UB.
+    pub(crate) const INDEX_BASED: bool = size_of::<S::Elem>() == 0 || cfg!(debug_assertions);
 
     /// Create a new [`Location`].
     ///
@@ -33,7 +39,7 @@ where
         start: NonNull<S::Elem>,
         offset: usize,
     ) -> Self {
-        if Self::IS_ZST {
+        if Self::INDEX_BASED {
             Self { offset }
         } else {
             Self {
@@ -65,7 +71,7 @@ where
         let origin = match O::KIND {
             // NOTE: Since we were given a pointer and we're dealing with ZSTs, we only want to return
             //       the offset of self, and `self - 0 == self`.
-            OriginKind::Pointer(..) if Self::IS_ZST => Location { offset: 0 },
+            OriginKind::Pointer(..) if Self::INDEX_BASED => Location { offset: 0 },
             // NOTE: We were provided a pointer and we're not dealing with ZSTs, so turn it into a location.
             OriginKind::Pointer(ptr) => Location {
                 offset_ptr: ptr.coerce(origin),
@@ -74,7 +80,7 @@ where
             OriginKind::Location(loc) => loc.coerce(origin),
         };
 
-        if Self::IS_ZST {
+        if Self::INDEX_BASED {
             // SAFETY: The caller ensures this is fine.
             unsafe { self.offset.unchecked_sub(origin.offset) }
         } else {
@@ -102,7 +108,7 @@ where
     ) -> Location<S> {
         let old = *self;
 
-        if Self::IS_ZST {
+        if Self::INDEX_BASED {
             // SAFETY: The caller ensures this is fine.
             unsafe { self.offset = self.offset.unchecked_add(amount) }
         } else {
@@ -129,7 +135,7 @@ where
         &mut self,
         amount: usize,
     ) -> Location<S> {
-        if Self::IS_ZST {
+        if Self::INDEX_BASED {
             // SAFETY: The caller ensures this is sound.
             unsafe { self.offset = self.offset.unchecked_sub(amount) }
         } else {
