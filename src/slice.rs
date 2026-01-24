@@ -1,3 +1,5 @@
+// TODO: Fix comments, a lot of them relating to errors are currently slightly inaccurate.
+
 #![allow(type_alias_bounds, clippy::empty_docs)]
 
 use crate::{
