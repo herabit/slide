@@ -1,4 +1,4 @@
-use core::{num::NonZero, ops::Range};
+use core::ops::Range;
 
 use crate::macros::{assert_unchecked, unreachable_unchecked};
 

@@ -128,23 +128,14 @@ where
     ///
     /// The caller *must* ensure that it is safe to increment this location
     /// by `amount`. Failure to do so is *undefined behavior*.
-    ///
-    /// # Returns
-    ///
-    /// Returns the old location.
     #[inline(always)]
-    #[must_use]
     #[track_caller]
     pub(crate) const unsafe fn advance_assign(
         &mut self,
         amount: usize,
-    ) -> Location<S> {
-        let old = *self;
-
+    ) {
         // SAFETY: The caller ensures this is fine.
         *self = unsafe { self.advance(amount) };
-
-        old
     }
 
     /// Rewind the location without checks.
@@ -183,20 +174,14 @@ where
     ///
     /// The caller *must* ensure that it is safe to decrement this location
     /// by `amount`. Failure to do so is *undefined behavior*.
-    ///
-    /// # Returns
-    ///
-    /// Returns the new location.
     #[inline(always)]
     #[track_caller]
     pub(crate) const unsafe fn rewind_assign(
         &mut self,
         amount: usize,
-    ) -> Location<S> {
+    ) {
         // SAFETY: The caller ensures this is sound.
         *self = unsafe { self.rewind(amount) };
-
-        *self
     }
 
     /// Apply this location to a given pointer.

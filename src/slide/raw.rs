@@ -34,7 +34,7 @@ use crate::{
 ///   *allocated object*.
 ///
 /// - That the cursor is *always within bounds* and lies upon a
-///   valid split boundary for `S` while the given [`RawSlice`] is in use.
+///   valid split boundary for `S` while the given [`RawSlide`] is in use.
 ///
 /// - Other shit... Don't fuck this up. I need to flesh this fully out later.
 #[repr(C)]
@@ -210,9 +210,66 @@ where
         unsafe {
             assert_unchecked!(
                 consumed.unchecked_add(remaining) == entire,
-                "`consumed.checked_add(remaining) != Some(entire)`"
+                "`consumed.len().checked_add(remaining.len()) != Some(entire.len())`"
             )
         };
+    }
+
+    /// Returns a raw pointer into the entire slice.
+    ///
+    /// # Safety
+    ///
+    /// This method returns a raw pointer, and it is up to the
+    /// caller to ensure it is utilized properly.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub(crate) const fn entire_raw(&self) -> NonNull<S> {
+        self.compiler_hints();
+
+        // SAFETY: `start..end` is a valid memory range.
+        let len = unsafe { self.end.offset_from(self.start) };
+        let ptr = self.start;
+
+        raw_slice_nonnull(ptr, len)
+    }
+
+    /// Returns a reference into the entire slice.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that it is safe to create shared borrows
+    /// to the underlying slice that last for `'a`.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub(crate) const unsafe fn entire_ref<'a>(&self) -> &'a S {
+        // SAFETY: The caller ensures that it is safe to create shared borrows
+        //         to the underlying slice that last for `'a`.
+        unsafe { self.entire_raw().as_ref() }
+    }
+
+    /// Returns a mutable reference into the entire slice.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that it is safe to create mutable borrows
+    /// to the underlying slice that last for `'a`.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub(crate) const unsafe fn entire_mut<'a>(&mut self) -> &'a mut S {
+        // SAFETY: The caller ensures that it is safe to create exclusive borrows
+        //         to the underltying slice that last for `'a`.
+        unsafe { self.entire_raw().as_mut() }
+    }
+
+    /// Returns the length of the entire slice.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub(crate) const fn entire_len(&self) -> usize {
+        len(self.entire_raw().as_ptr())
     }
 
     /// Returns a raw pointer into the consumed slice.
@@ -264,6 +321,13 @@ where
         unsafe { self.consumed_raw().as_mut() }
     }
 
+    /// Returns the length of the consumed slice.
+    #[inline(always)]
+    #[must_use]
+    pub(crate) const fn consumed_len(&self) -> usize {
+        len(self.consumed_raw().as_ptr())
+    }
+
     /// Returns a raw pointer into the remaining slice.
     ///
     /// # Safety
@@ -313,6 +377,14 @@ where
         // SAFETY: The caller ensures that it is safe to create exclusive borrows
         //         to the underlying slice that last for `'a`.
         unsafe { self.remaining_raw().as_mut() }
+    }
+
+    /// Returns the length of the remaining slice.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub(crate) const fn remaining_len(&self) -> usize {
+        len(self.remaining_raw().as_ptr())
     }
 
     /// Returns a raw pointer into the slice, but split.
@@ -369,55 +441,6 @@ where
         //         to the underlying slice that last for `'a`.
         unsafe { (consumed.as_mut(), remaining.as_mut()) }
     }
-
-    /// Returns a raw pointer into the entire slice.
-    ///
-    /// # Safety
-    ///
-    /// This method returns a raw pointer, and it is up to the
-    /// caller to ensure it is utilized properly.
-    #[inline(always)]
-    #[must_use]
-    #[track_caller]
-    pub(crate) const fn entire_raw(&self) -> NonNull<S> {
-        self.compiler_hints();
-
-        // SAFETY: `start..end` is a valid memory range.
-        let len = unsafe { self.end.offset_from(self.start) };
-        let ptr = self.start;
-
-        raw_slice_nonnull(ptr, len)
-    }
-
-    /// Returns a reference into the entire slice.
-    ///
-    /// # Safety
-    ///
-    /// The caller must ensure that it is safe to create shared borrows
-    /// to the underlying slice that last for `'a`.
-    #[inline(always)]
-    #[must_use]
-    #[track_caller]
-    pub(crate) const unsafe fn entire_ref<'a>(&self) -> &'a S {
-        // SAFETY: The caller ensures that it is safe to create shared borrows
-        //         to the underlying slice that last for `'a`.
-        unsafe { self.entire_raw().as_ref() }
-    }
-
-    /// Returns a mutable reference into the entire slice.
-    ///
-    /// # Safety
-    ///
-    /// The caller must ensure that it is safe to create mutable borrows
-    /// to the underlying slice that last for `'a`.
-    #[inline(always)]
-    #[must_use]
-    #[track_caller]
-    pub(crate) const unsafe fn entire_mut<'a>(&mut self) -> &'a mut S {
-        // SAFETY: The caller ensures that it is safe to create exclusive borrows
-        //         to the underltying slice that last for `'a`.
-        unsafe { self.entire_raw().as_mut() }
-    }
 }
 
 impl<S> RawSlide<S>
@@ -428,8 +451,12 @@ where
     ///
     /// # Returns
     ///
-    /// - Returns `Ok(peeked)` where `peeked` is the peeked subslice, upon success.
-    /// - Returns `Err(error)` if it is not valid to look ahead by `amount` elements.
+    /// - Upon success,`Ok(peeked)` is returned where `peeked` is the peeked subslice.
+    /// - Upon failure, `Err(error)` is returned indicating why it is not valid to
+    ///   look ahead by `amount` elements.
+    ///
+    ///   See the documentation for [`Slice::validate_split_at`] as implemented for `S` for details on
+    ///   what is considered an invalid split boundary.
     ///
     /// # Safety
     ///
@@ -442,7 +469,7 @@ where
         amount: usize,
     ) -> Result<NonNull<S>, SplitError<S>> {
         // SAFETY: The caller ensures that it is safe to create a temporary reference
-        //         to validate whether we're able to advance the cursor.
+        //         to validate whether we're able to peek ahead the cursor.
         let result = validate_split_at(unsafe { self.remaining_ref() }, amount);
 
         match NoDrop::new(result).transpose() {
@@ -452,10 +479,7 @@ where
                 //
                 //         We insert this because, at least for `str`s, this information gets lost.
                 unsafe {
-                    assert_unchecked!(
-                        amount <= len(self.remaining_raw().as_ptr()),
-                        "`amount > remaining.len()`"
-                    )
+                    assert_unchecked!(amount <= self.remaining_len(), "`amount > remaining.len()`")
                 };
 
                 // SAFETY: We already know `cursor` to be at a valid position.
@@ -463,7 +487,13 @@ where
 
                 Ok(raw_slice_nonnull(ptr, amount))
             }
-            Err(error) => Err(error.into_inner()),
+            Err(error) => {
+                // SAFETY: All erroneous indices are nonzero, this is because for *any* slice,
+                //         it is always valid to get `slice[0..]`, as `slice[0..] == slice`.
+                unsafe { assert_unchecked!(amount != 0, "`index == 0`") };
+
+                Err(error.into_inner())
+            }
         }
     }
 
@@ -471,8 +501,12 @@ where
     ///
     /// # Returns
     ///
-    /// - Returns `Ok(peeked)` where `peeked` is the peeked subslice, upon success.
-    /// - Returns `Err(error)` if it is not valid to look behind by `amount` elements.
+    /// - Upon success, `Ok(peeked)` is returned where `peeked` is the peeked subslice.
+    /// - Upon failure, `Err(error)` is returned indicating why it is not valid to
+    ///   look behind by `amount` elements.
+    ///
+    ///   See the documentation for [`Slice::validate_split_at`] as implemented for `S` for details on
+    ///   what is considered an invalid split boundary.
     ///
     /// # Safety
     ///
@@ -484,20 +518,21 @@ where
         &self,
         amount: usize,
     ) -> Result<NonNull<S>, SplitError<S>> {
-        let result = match cmp_usize(amount, len(self.consumed_raw().as_ptr())) {
+        let result = match cmp_usize(amount, self.consumed_len()) {
             Ordering::Less | Ordering::Equal => validate_split_at(
                 // SAFETY: The caller ensures that it is safe to create a temporary reference
-                //         to validate whether we're able to rewind the cursor.
+                //         to validate whether we're able to peek behind the cursor.
                 unsafe { self.consumed_ref() },
-                len(self.consumed_raw().as_ptr()).strict_sub(amount),
+                self.consumed_len().strict_sub(amount),
             ),
-            Ordering::Greater => Err(SplitError::OutOfBounds {
-                index: NonZero::new(
-                    (len(self.consumed_raw().as_ptr()) as OobIndex).strict_sub(amount as OobIndex),
-                )
-                .unwrap(),
-                len: len(self.consumed_raw().as_ptr()),
-            }),
+            Ordering::Greater => {
+                let index = (self.consumed_len() as OobIndex).strict_sub(amount as OobIndex);
+
+                Err(SplitError::OutOfBounds {
+                    index: NonZero::new(index).expect("erroneous indices are always nonzero"),
+                    len: self.consumed_len(),
+                })
+            }
         };
 
         match NoDrop::new(result).transpose() {
@@ -507,10 +542,7 @@ where
                 //
                 //         We insert this because, at least for `str`s, this information gets lost.
                 unsafe {
-                    assert_unchecked!(
-                        amount <= len(self.consumed_raw().as_ptr()),
-                        "`amount > consumed.len()`"
-                    )
+                    assert_unchecked!(amount <= self.consumed_len(), "`amount > consumed.len()`")
                 };
 
                 // SAFETY: We now know `cursor - amount` to be at a valid position.
@@ -518,7 +550,455 @@ where
 
                 Ok(raw_slice_nonnull(ptr, amount))
             }
+            Err(error) => {
+                let index = (self.consumed_len() as OobIndex).strict_sub(amount as OobIndex);
+
+                // SAFETY: All erroneous indices are nonzero, this is because for *any* slice,
+                //         it is always valid to get `slice[0..]`, as `slice[0..] == slice`.
+                unsafe { assert_unchecked!(index != 0, "`index == 0`") };
+
+                Err(error.into_inner())
+            }
+        }
+    }
+
+    /// Attempt to advance the slide by `amount` elements.
+    ///
+    /// # Returns
+    ///
+    /// - Upon success, `Ok(advanced)` is returned where `advanced` is the advanced subslice.
+    /// - Upon failure, `Err(error)` is returned indicating why it is not valid to
+    ///   advance by `amount` elements.
+    ///
+    ///   See the documentation for [`Slice::validate_split_at`] as implemented for `S` for details on
+    ///   what is considered an invalid split boundary.
+    ///
+    /// # Safety
+    ///
+    /// The caller needs to ensure that it is safe to create a temporary reference to the
+    /// underlying buffer for validation.
+    #[inline(always)]
+    #[track_caller]
+    pub(crate) const unsafe fn try_advance(
+        &mut self,
+        amount: usize,
+    ) -> Result<NonNull<S>, SplitError<S>> {
+        // SAFETY: The caller ensures that it is safe to create a temporary reference
+        //         to validate whether we're able to advance the cursor.
+        let result = unsafe { self.try_peek_ahead(amount) };
+
+        match NoDrop::new(result).transpose() {
+            Ok(advanced) => {
+                // SAFETY: If we can peek ahead by `amount`, then it is sound to
+                //         advance by `amount`.
+                unsafe { self.cursor.advance_assign(amount) };
+
+                // SAFETY: We advanced the cursor, so now we need to tell LLVM that
+                //         `amount <= consumed.len()`, as this is now true but LLVM
+                //         sometimes struggles to understand this, particularly for
+                //         `str`s when the slide is not index based.
+                //
+                // NOTE: This also has the added benefit of running `compiler_hints`
+                //       for us as well, additionally proving that the slide is now
+                //       still valid.
+                unsafe {
+                    assert_unchecked!(amount <= self.consumed_len(), "`amount > consumed.len()`")
+                };
+
+                Ok(advanced.into_inner())
+            }
             Err(error) => Err(error.into_inner()),
+        }
+    }
+
+    /// Attempt to rewind the slide by `amount` elements.
+    ///
+    /// # Returns
+    ///
+    /// - Upon success, `Ok(rewound)` is returned where `rewound` is the rewound subslice.
+    /// - Upon failure, `Err(error)` is returned indicating why it is not valid to
+    ///   rewind by `amount` elements.
+    ///
+    ///   See the documentation for [`Slice::validate_split_at`] as implemented for `S` for details on
+    ///   what is considered an invalid split boundary.
+    ///
+    /// # Safety
+    ///
+    /// The caller needs to ensure that it is safe to create a temporary reference to the
+    /// underlying buffer for validation.
+    #[inline(always)]
+    #[track_caller]
+    pub(crate) const unsafe fn try_rewind(
+        &mut self,
+        amount: usize,
+    ) -> Result<NonNull<S>, SplitError<S>> {
+        // SAFETY: The caller ensures that it is safe to create a temporary reference
+        //         to validate whether we're able to rewind the cursor.
+        let result = unsafe { self.try_peek_behind(amount) };
+
+        match NoDrop::new(result).transpose() {
+            Ok(rewound) => {
+                // SAFETY: If we can peek behind by `amount`, then it is sound to
+                //         rewind by `amount`.
+                unsafe { self.cursor.rewind_assign(amount) };
+
+                // SAFETY: We rewound the cursor, so we need to tell LLVM that
+                //         `amount <= remaining.len()`, as this is now true but LLVM
+                //         sometimes struggles to understand this, particularly for
+                //         `str`s when the slide is not index based.
+                //
+                // NOTE: This also has the added benefit of running `compiler_hints`
+                //       for us as well, additionally proving that the slide is now
+                //       still valid.
+                unsafe {
+                    assert_unchecked!(amount <= self.remaining_len(), "`amount > remaining.len()`")
+                };
+
+                Ok(rewound.into_inner())
+            }
+            Err(error) => Err(error.into_inner()),
+        }
+    }
+}
+
+impl<S> RawSlide<S>
+where
+    S: Slice + ?Sized,
+{
+    /// Peek ahead by `amount` elements.
+    ///
+    /// # Returns
+    ///
+    /// Returns the peeked subslice.
+    ///
+    /// # Panics
+    ///
+    /// Panics when it is invalid to look ahead by `amount` elements.
+    ///
+    /// See the documentation for [`Slice::validate_split_at`] as implemented for `S` for details on
+    /// what is considered an invalid split boundary.
+    ///
+    /// # Safety
+    ///
+    /// The caller needs to ensure that it is safe to create a temporary reference to the
+    /// underlying buffer for validation.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub(crate) const unsafe fn peek_ahead(
+        &self,
+        amount: usize,
+    ) -> NonNull<S> {
+        // SAFETY: The caller ensures that it is safe to create a temporary reference
+        //         to validate whether we're able to peek ahead the cursor.
+        let result = unsafe { self.try_peek_ahead(amount) };
+
+        match NoDrop::new(result).transpose() {
+            Ok(peeked) => peeked.into_inner(),
+            Err(..) => {
+                // SAFETY: The caller ensures that it is safe to create a temporary reference
+                //         which we only use for the sake of panicking.
+                let remaining = unsafe { self.remaining_ref() };
+
+                // SAFETY: We know that we encountered an error.
+                unsafe {
+                    split_error_handler(
+                        remaining,
+                        NonZero::new(amount as OobIndex)
+                            .expect("erroneous indices are always nonzero"),
+                    )
+                }
+            }
+        }
+    }
+
+    /// Peek behind by `amount` elements.
+    ///
+    /// # Returns
+    ///
+    /// Returns the peeked subslice.
+    ///
+    /// # Panics
+    ///
+    /// Panics when it is invalid to look behind by `amount` elements.
+    ///
+    /// See the documentation for [`Slice::validate_split_at`] as implemented for `S` for details on
+    /// what is considered an invalid split boundary.
+    ///
+    /// # Safety
+    ///
+    /// The caller needs to ensure that it is safe to create a temporary reference to the
+    /// underlying buffer for validation.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub(crate) const unsafe fn peek_behind(
+        &self,
+        amount: usize,
+    ) -> NonNull<S> {
+        // SAFETY: The caller ensures that it is safe to create a temporary reference
+        //         to validate whether we're able to peek behind the cursor.
+        let result = unsafe { self.try_peek_behind(amount) };
+
+        match NoDrop::new(result).transpose() {
+            Ok(peeked) => peeked.into_inner(),
+            Err(..) => {
+                // SAFETY: The caller ensures that it is safe to create a temporary reference
+                //         which we only use for the sake of panicking.
+                let consumed = unsafe { self.consumed_ref() };
+
+                let index = (self.consumed_len() as OobIndex).strict_sub(amount as OobIndex);
+
+                // SAFETY: We know that we encountered an error.
+                unsafe {
+                    split_error_handler(
+                        consumed,
+                        NonZero::new(index).expect("erroneous indices are always nonzero"),
+                    )
+                }
+            }
+        }
+    }
+
+    /// Advance the slide by `amount` elements.
+    ///
+    /// # Returns
+    ///
+    /// Returns the advanced subslice.
+    ///
+    /// # Panics
+    ///
+    /// Panics when it is invalid to advance the slide by `amount` elements.
+    ///
+    /// See the documentation for [`Slice::validate_split_at`] as implemented for `S` for details on
+    /// what is considered an invalid split boundary.
+    ///
+    /// # Safety
+    ///
+    /// The caller needs to ensure that it is safe to create a temporary reference to the
+    /// underlying buffer for validation.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub(crate) const unsafe fn advance(
+        &mut self,
+        amount: usize,
+    ) -> NonNull<S> {
+        // SAFETY: The caller ensures that it is safe to create a temporary reference
+        //         to validate whether we're able to advance the cursor.
+        let result = unsafe { self.try_advance(amount) };
+
+        match NoDrop::new(result).transpose() {
+            Ok(advanced) => advanced.into_inner(),
+            Err(..) => {
+                // SAFETY: The caller ensures that it is safe to create a temporary reference
+                //         which we only use for the sake of panicking.
+                let remaining = unsafe { self.remaining_ref() };
+
+                // SAFETY: We know that we encountered an error.
+                unsafe {
+                    split_error_handler(
+                        remaining,
+                        NonZero::new(amount as OobIndex)
+                            .expect("erroneous indices are always nonzero"),
+                    )
+                }
+            }
+        }
+    }
+
+    /// Rewind the slide by `amount` elements.
+    ///
+    /// # Returns
+    ///
+    /// Returns the rewound subslice.
+    ///
+    /// # Panics
+    ///
+    /// Panics when it is invalid to rewind the slide by `amount` elements.
+    ///
+    /// See the documentation for [`Slice::validate_split_at`] as implemented for `S` for details on
+    /// what is considered an invalid split boundary.
+    ///
+    /// # Safety
+    ///
+    /// The caller needs to ensure that it is safe to create a temporary reference to the
+    /// underlying buffer for validation.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub(crate) const unsafe fn rewind(
+        &mut self,
+        amount: usize,
+    ) -> NonNull<S> {
+        // SAFETY: The caller ensures that it is safe to create a temporary reference
+        //         to validate whether we're able to rewind the cursor.
+        let result = unsafe { self.try_rewind(amount) };
+
+        match NoDrop::new(result).transpose() {
+            Ok(rewound) => rewound.into_inner(),
+            Err(..) => {
+                // SAFETY: The caller ensures that it is safe to create a temporary reference
+                //         which we only use for the sake of panicking.
+                let consumed = unsafe { self.consumed_ref() };
+
+                let index = (self.consumed_len() as OobIndex).strict_sub(amount as OobIndex);
+
+                // SAFETY: We know that we encountered an error.
+                unsafe {
+                    split_error_handler(
+                        consumed,
+                        NonZero::new(index).expect("erroneous indices are always nonzero"),
+                    )
+                }
+            }
+        }
+    }
+}
+
+impl<S> RawSlide<S>
+where
+    S: Slice + ?Sized,
+{
+    /// Peek ahead the slide by `amount` elements without any checks.
+    ///
+    /// # Returns
+    ///
+    /// Returns the peeked subslice.
+    ///
+    /// # Safety
+    ///
+    /// The caller needs to ensure that it is safe to create a temporary reference to the
+    /// underlying buffer for validation. Despite this method not doing any checks on release builds,
+    /// it *does* actually do checks on debug builds to catch *undefined behavior*.
+    ///
+    /// Additionally, the caller needs to ensure that it is indeed valid to peek ahead by `amount`
+    /// elements.
+    ///
+    /// See the documentation for [`Slice::validate_split_at`] as implemented for `S` for details on
+    /// what is considered an invalid split boundary to avoid *undefined behavior*.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub(crate) const unsafe fn peek_ahead_unchecked(
+        &self,
+        amount: usize,
+    ) -> NonNull<S> {
+        // SAFETY: The caller ensures that it is safe to create a temporary reference
+        //         to validate whether we're able to peek ahead the cursor.
+        let result = unsafe { self.try_peek_ahead(amount) };
+
+        match NoDrop::new(result).transpose() {
+            Ok(peeked) => peeked.into_inner(),
+            // SAFETY: The caller ensures that it is always valid to peek ahead the cursor
+            //         by `amount` elements.
+            Err(error) => unsafe { error.into_inner().panic_unchecked() },
+        }
+    }
+
+    /// Peek behind the slide by `amount` elements without any checks.
+    ///
+    /// # Returns
+    ///
+    /// Returns the peeked subslice.
+    ///
+    /// # Safety
+    ///
+    /// The caller needs to ensure that it is safe to create a temporary reference to the
+    /// underlying buffer for validation. Despite this method not doing any checks on release builds,
+    /// it *does* actually do checks on debug builds to catch *undefined behavior*.
+    ///
+    /// Additionally, the caller needs to ensure that it is indeed valid to peek behind by `amount`
+    /// elements.
+    ///
+    /// See the documentation for [`Slice::validate_split_at`] as implemented for `S` for details on
+    /// what is considered an invalid split boundary to avoid *undefined behavior*.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub(crate) const unsafe fn peek_behind_unchecked(
+        &self,
+        amount: usize,
+    ) -> NonNull<S> {
+        // SAFETY: The caller ensures that it is safe to create a temporary reference
+        //         to validate whether we're able to peek behind the cursor.
+        let result = unsafe { self.try_peek_behind(amount) };
+
+        match NoDrop::new(result).transpose() {
+            Ok(peeked) => peeked.into_inner(),
+            // SAFETY: The caller ensures that it is always valid to peek behind the cursor
+            //         by `amount` elements.
+            Err(error) => unsafe { error.into_inner().panic_unchecked() },
+        }
+    }
+
+    /// Advance the slide by `amount` elements without any checks.
+    ///
+    /// # Returns
+    ///
+    /// Returns the advanced subslice.
+    ///
+    /// # Safety
+    ///
+    /// The caller needs to ensure that it is safe to create a temporary reference to the
+    /// underlying buffer for validation. Despite this method not doing any checks on release builds,
+    /// it *does* actually do checks on debug builds to catch *undefined behavior*.
+    ///
+    /// Additionally, the caller needs to ensure that it is indeed valid to advance by `amount` elements.
+    ///
+    /// See the documentation for [`Slice::validate_split_at`] as implemented for `S` for details on
+    /// what is considered an invalid split boundary to avoid *undefined behavior*.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub(crate) const unsafe fn advance_unchecked(
+        &mut self,
+        amount: usize,
+    ) -> NonNull<S> {
+        // SAFETY: The caller ensures that it is safe to create a temporary reference
+        //         to validate whether we're able to advance the cursor.
+        let result = unsafe { self.try_advance(amount) };
+
+        match NoDrop::new(result).transpose() {
+            Ok(advanced) => advanced.into_inner(),
+            // SAFETY: The caller ensures that it is always valid to advance the cursor
+            //         by `amount` elements.
+            Err(error) => unsafe { error.into_inner().panic_unchecked() },
+        }
+    }
+
+    /// Rewind the slide by `amount` elements without any checks.
+    ///
+    /// # Returns
+    ///
+    /// Returns the rewound subslice.
+    ///
+    /// # Safety
+    ///
+    /// The caller needs to ensure that it is safe to create a temporary reference to the
+    /// underlying buffer for validation. Despite this method not doing any checks on release builds,
+    /// it *does* actually do checks on debug builds to catch *undefined behavior*.
+    ///
+    /// Additionally, the caller needs to ensure that it is indeed valid to rewind by `amount` elements.
+    ///
+    /// See the documentation for [`Slice::validate_split_at`] as implemented for `S` for details on
+    /// what is considered an invalid split boundary to avoid *undefined behavior*.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub(crate) const unsafe fn rewind_unchecked(
+        &mut self,
+        amount: usize,
+    ) -> NonNull<S> {
+        // SAFETY: The caller ensures that it is safe to create a temporary reference
+        //         to validate whether we're able to advance the cursor.
+        let result = unsafe { self.try_rewind(amount) };
+
+        match NoDrop::new(result).transpose() {
+            Ok(rewound) => rewound.into_inner(),
+            // SAFETY: The caller ensures that it is always valid to rewind the cursor
+            //         by `amount` elements.
+            Err(error) => unsafe { error.into_inner().panic_unchecked() },
         }
     }
 }

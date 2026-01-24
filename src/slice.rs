@@ -14,13 +14,13 @@ pub(crate) mod error;
 pub use error::*;
 
 /// Just an alias for a split slice tuple.
-pub type Split<'a, S>
+pub(crate) type Split<'a, S>
 where
     S: Slice + ?Sized,
 = (&'a S, &'a S);
 
 /// Just an alias for the results of a mutable split.
-pub type SplitMut<'a, S>
+pub(crate) type SplitMut<'a, S>
 where
     S: Slice + ?Sized,
 = (&'a mut S, &'a mut S);
